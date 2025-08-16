@@ -1,18 +1,17 @@
-import { useSignUp, useUser, useOrganization, useOrganizationList } from "@clerk/nextjs"
-import { useRouter } from "next/navigation"
+import { useSignUp } from "@clerk/nextjs"
 type STEP = 'CREDENTIALS' | 'ORGANIZATION_DATA' | 'VERIFICATION'
 
 export const useSignupUser = () => {
 
-    const router = useRouter()
-    const { isLoaded, signUp, setActive } = useSignUp()
+
+    const { signUp, setActive } = useSignUp()
 
     const signUpUser = async ({ email, password, firstName, lastName, organizationName, source, userName ,setStep = null }: { email: string, password: string, firstName: string, lastName: string, organizationName: string, source:string, userName:string ,setStep?: React.Dispatch<React.SetStateAction<STEP>> | null }): Promise<any> => {
 
         if (!signUp) return
 
         try {
-            const createResult = await signUp.create({
+            const createResult:any = await signUp.create({
                 emailAddress: email,
                 password: password,
                 firstName: firstName,
@@ -63,6 +62,7 @@ export const useSignupUser = () => {
         } catch (err: any) {
             console.error('Error verifying email:', err);
             const errorMessage = err.errors?.[0]?.message || err.message || 'Invalid verification code';
+            console.error(errorMessage)
             throw new Error(err)
         } finally {
             //TODO

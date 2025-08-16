@@ -1,9 +1,8 @@
 'use client'
 import React, { useState } from 'react'
-import { useLoginUser } from '@/hooks/use-login'
 import { useRouter } from 'next/navigation'
 import { useSignupUser } from '@/hooks/use-signup'
-import { MoveLeft } from 'lucide-react'
+
 
 type STEP = 'CREDENTIALS' | 'ORGANIZATION_DATA' | 'VERIFICATION'
 
@@ -20,7 +19,7 @@ type FormDataSignUp = {
 
 
 
-const page = () => {
+const Page:React.FC = () => {
 
     const { signUpUser, verifyEmailCode, handleGoogleSignUp } = useSignupUser()
     const [error, setError] = useState<string>('')
@@ -35,7 +34,7 @@ const page = () => {
         source:'',
         userName:''
     })
-    let nextDisabled = (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.organizationName || !formData.userName || formData.email.trim().length==0 || formData.password.trim().length==0 || formData.firstName.trim().length==0 || formData.lastName.trim().length==0 || formData.organizationName.trim().length==0 || formData.userName.trim().length==0)
+    const nextDisabled = (!formData.email || !formData.password || !formData.firstName || !formData.lastName || !formData.organizationName || !formData.userName || formData.email.trim().length==0 || formData.password.trim().length==0 || formData.firstName.trim().length==0 || formData.lastName.trim().length==0 || formData.organizationName.trim().length==0 || formData.userName.trim().length==0)
 
     const handleSubmit = async(formdata:FormData)=>{
         const email = formdata.get('email') as string
@@ -64,6 +63,9 @@ const page = () => {
         }
     }
 
+    //TODO: remove this
+    console.log(error)
+
     return (
         <div className='w-[40%] h-fit max-w-[450px] py-6 min-w-[300px] min-h-[450px] p-4 bg-card rounded-md flex flex-col items-center justify-center gap-4 shadow-lg shadow-foreground'>
             {step!=='VERIFICATION' && <div className='w-full flex flex-col items-center justify-center gap-4 text-accent-foreground px-10'>
@@ -74,7 +76,7 @@ const page = () => {
 
 
 
-                <button className='bg-accent w-full rounded-md p-2 cursor-pointer text-primary'>
+                <button onClick={handleGoogleSignUp} className='bg-accent w-full rounded-md p-2 cursor-pointer text-primary'>
                     Sign in with google
                 </button>
 
@@ -175,4 +177,4 @@ const page = () => {
     )
 }
 
-export default page
+export default Page

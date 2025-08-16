@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation"
 export const useLoginUser = () => {
 
     const router = useRouter()
-    const { isLoaded, signIn, setActive } = useSignIn()
+    const { signIn, setActive } = useSignIn()
 
     const loginUser = async ({ email, password }: { email: string, password: string }) => {
 
@@ -39,11 +39,12 @@ export const useLoginUser = () => {
         if (!signIn) return;
 
         try {
-            const signInWithGoogle = await signIn.authenticateWithRedirect({
+            const signInWithGoogle:any = await signIn.authenticateWithRedirect({
                 strategy: "oauth_google",
                 redirectUrl: "/auth/signup",
                 redirectUrlComplete: "/",
             });
+            console.log(signInWithGoogle)
         } catch (err: any) {
             console.error('Error with Google login:', err);
             if (err.errors?.[0]?.code === 'form_identifier_not_found') {

@@ -7,9 +7,9 @@ type layout = {
     children:React.ReactNode
 }
 
-const layoutAuth = ({children}:layout) => {
+const LayoutAuth:React.FC<layout> = ({children}) => {
 
-  const { userId, sessionId, isSignedIn, isLoaded } = useAuth()
+  const { isSignedIn, isLoaded } = useAuth()
   const router = useRouter()
 
   useEffect(()=>{
@@ -31,4 +31,4 @@ const layoutAuth = ({children}:layout) => {
   )
 }
 
-export default layoutAuth
+export default LayoutAuth

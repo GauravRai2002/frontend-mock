@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 
 
 
-const page = () => {
+const Page:React.FC = () => {
 
     const { loginUser } = useLoginUser()
     const [error, setError] = useState<string>('')
@@ -21,6 +21,8 @@ const page = () => {
         }
         await loginUser({email, password})
     }
+    //TODO: remove this
+    console.log(error)
 
     return (
         <div className='w-[40%] h-[50%] max-w-[450px] max-h-[600px] min-w-[300px] min-h-[450px] p-4 bg-card rounded-md flex flex-col items-center justify-center gap-4 shadow-lg shadow-foreground'>
@@ -64,4 +66,4 @@ const page = () => {
     )
 }
 
-export default page
+export default Page

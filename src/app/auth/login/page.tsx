@@ -4,7 +4,7 @@ import { useLoginUser } from '@/hooks/use-login'
 import { useRouter } from 'next/navigation'
 
 
-const page = () => {
+const Page:React.FC = () => {
 
     const { loginUser, handleGoogleSignIn } = useLoginUser()
     const [error, setError] = useState<string>('')
@@ -20,6 +20,8 @@ const page = () => {
         }
         await loginUser({email, password})
     }
+    //TODO: remove this
+    console.log(error)
 
     return (
         <div className='w-[40%] h-[50%] max-w-[450px] max-h-[600px] min-w-[300px] min-h-[450px] p-4 bg-card rounded-md flex flex-col items-center justify-center gap-4 shadow-lg shadow-foreground'>
@@ -56,11 +58,11 @@ const page = () => {
 
                 </form>
             </div>
-            <div className='text-primary'>Don't have an account? <span onClick={()=>{
+            <div className='text-primary'>Don&apos;t have an account? <span onClick={()=>{
                 router.push('/auth/signup')
             }} className='text-foreground underline cursor-pointer'>Sign Up</span></div>
         </div>
     )
 }
 
-export default page
+export default Page
