@@ -1,10 +1,12 @@
-import { useSignUp } from "@clerk/nextjs"
+import { useSignUp, useUser, useOrganizationList } from "@clerk/nextjs"
 type STEP = 'CREDENTIALS' | 'ORGANIZATION_DATA' | 'VERIFICATION'
 
 export const useSignupUser = () => {
 
 
     const { signUp, setActive } = useSignUp()
+
+    const { createOrganization, setActive:setActiveOrganization } = useOrganizationList()
 
     const signUpUser = async ({ email, password, firstName, lastName, organizationName, source, userName ,setStep = null }: { email: string, password: string, firstName: string, lastName: string, organizationName: string, source:string, userName:string ,setStep?: React.Dispatch<React.SetStateAction<STEP>> | null }): Promise<any> => {
 
@@ -34,7 +36,7 @@ export const useSignupUser = () => {
         }
     }
 
-    const verifyEmailCode = async ({verificationCode}:{verificationCode:string}) => {
+    const verifyEmailCode = async ({verificationCode, orgName}:{verificationCode:string, orgName:string}) => {
         if (!signUp) return;
 
         console.log(verificationCode)
@@ -50,7 +52,16 @@ export const useSignupUser = () => {
             if (completeSignUp.status === "complete") {
                 // Set the active session
                 if (completeSignUp.createdSessionId) {
-                    await setActive({ session: completeSignUp.createdSessionId });
+                    await setActive({ session: completeSignUp.createdSessionId }).then(async()=>{
+                        if(createOrganization){
+                        const organization = await createOrganization({
+                            name:orgName,
+                            slug:orgName.toLowerCase().replace(/\s+/g, '-'),
+                        })
+                        setActiveOrganization({organization:organization.id})
+                    }
+                    });
+                    
 
                 } else {
                     console.error('No session ID found in completed signup');

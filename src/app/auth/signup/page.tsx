@@ -52,11 +52,11 @@ const Page:React.FC = () => {
         await signUpUser({email, password, firstName, lastName, organizationName, source, userName, setStep})
     }
 
-    const handleVerification = async(formData:FormData)=>{
-        const code = formData.get('code') as string
+    const handleVerification = async(_formData:FormData)=>{
+        const code = _formData.get('code') as string
 
         try{
-            await verifyEmailCode({verificationCode:code})
+            await verifyEmailCode({verificationCode:code, orgName: formData.organizationName})
             // router.push('/')
         }catch(err){
             console.error(err)
@@ -154,10 +154,13 @@ const Page:React.FC = () => {
                 </form>
             </div>}
             {step==='VERIFICATION' && <div className='w-full flex flex-col items-center justify-center gap-4 text-accent-foreground px-10'>
-                <div className='flex flex-col items-center justify-center text-accent-foreground'>
-                    <div className='text-xl font-bold'>Email sent to {formData.email}</div>
+                <div className='flex flex-col items-center justify-center text-accent-foreground gap-2'>
+                    <div className='text-xl font-bold text-center'>Email sent to {formData.email}</div>
                     <p className='text-sm text-center'>Please enter the verification code sent to the email</p>
                 </div>
+
+                <div className='h-0.5 bg-accent-foreground w-full my-4'></div>                
+
 
                 <form className='flex flex-col items-center justify-center w-full gap-6' action={handleVerification}>
                     <div className={`w-full  flex flex-col items-start justify-center gap-2`}>
