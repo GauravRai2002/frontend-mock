@@ -1,18 +1,21 @@
+'use client'
 import { useSignIn } from "@clerk/nextjs"
 import { useRouter } from "next/navigation"
+import { useState } from 'react'
 
 export const useLoginUser = () => {
 
     const router = useRouter()
     const { signIn, setActive } = useSignIn()
+    const [error, setError] = useState<string>('')
+    const [loading, setLoading] = useState<boolean>(false)
 
     const loginUser = async ({ email, password }: { email: string, password: string }) => {
 
         if (!signIn) return
 
-        console.log(email)
-
         try {
+            setLoading(true)
             const signinAttempt = await signIn?.create({
                 identifier: email
             })
@@ -29,9 +32,10 @@ export const useLoginUser = () => {
                     router.push('/');
                 }
             }
-        } catch (err) {
-            console.error(err)
-        }
+        } catch (err:any) {
+            setError(err.errors[0].message)
+            setLoading(false)
+        } 
     }
 
 
@@ -39,6 +43,7 @@ export const useLoginUser = () => {
         if (!signIn) return;
 
         try {
+            setLoading(true)
             const signInWithGoogle:any = await signIn.authenticateWithRedirect({
                 strategy: "oauth_google",
                 redirectUrl: "/auth/signup",
@@ -46,12 +51,14 @@ export const useLoginUser = () => {
             });
             console.log(signInWithGoogle)
         } catch (err: any) {
+            setLoading(false)
             console.error('Error with Google login:', err);
             if (err.errors?.[0]?.code === 'form_identifier_not_found') {
             // Redirect to signup
             router.push('/auth/signup');
             } else {
-            console.error('Error with Google login:', err);
+                console.error('Error with Google login:', err);
+                setError(err.data.errors[0])
             }
         }
     };
@@ -60,6 +67,8 @@ export const useLoginUser = () => {
     return {
         loginUser,
         handleGoogleSignIn,
+        error,
+        loading
     }
 
 

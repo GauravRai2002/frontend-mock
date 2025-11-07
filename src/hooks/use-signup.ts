@@ -1,10 +1,16 @@
+'use state'
 import { useSignUp, useUser, useOrganizationList } from "@clerk/nextjs"
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 type STEP = 'CREDENTIALS' | 'ORGANIZATION_DATA' | 'VERIFICATION'
 
 export const useSignupUser = () => {
 
 
     const { signUp, setActive } = useSignUp()
+    const [error, setError] = useState<string>('')
+    const [loading, setLoading] = useState<boolean>(false)
+    const router = useRouter()
 
     const { createOrganization, setActive:setActiveOrganization } = useOrganizationList()
 
@@ -13,6 +19,7 @@ export const useSignupUser = () => {
         if (!signUp) return
 
         try {
+            setLoading(true)
             const createResult:any = await signUp.create({
                 emailAddress: email,
                 password: password,
@@ -31,8 +38,13 @@ export const useSignupUser = () => {
             }
 
             return createResult
-        } catch (err) {
+        } catch (err:any) {
             console.error(err)
+            setError(err.errors[0].message)
+            if(setStep){
+                setStep('CREDENTIALS')
+            }
+            setLoading(false)
         }
     }
 
@@ -43,6 +55,7 @@ export const useSignupUser = () => {
 
         
         try {
+            setLoading(true)
             // Verify the email with the code
             const completeSignUp = await signUp.attemptEmailAddressVerification({
                 code: verificationCode,
@@ -61,7 +74,7 @@ export const useSignupUser = () => {
                         setActiveOrganization({organization:organization.id})
                     }
                     });
-                    
+                    router.push('/')
 
                 } else {
                     console.error('No session ID found in completed signup');
@@ -74,7 +87,9 @@ export const useSignupUser = () => {
             console.error('Error verifying email:', err);
             const errorMessage = err.errors?.[0]?.message || err.message || 'Invalid verification code';
             console.error(errorMessage)
+            setError(errorMessage)
             throw new Error(err)
+            setLoading(false)
         } finally {
             //TODO
         }
@@ -88,6 +103,7 @@ export const useSignupUser = () => {
         if (!signUp) return;
 
         try {
+            setLoading(true)
             await signUp.authenticateWithRedirect({
                 strategy: "oauth_google",
                 redirectUrl: "/signup",
@@ -97,6 +113,9 @@ export const useSignupUser = () => {
             });
         } catch (err: any) {
             console.error('Error with Google login:', err);
+            setError(err.errors[0].message)
+            setLoading(false)
+
         }
     };
 
@@ -104,7 +123,9 @@ export const useSignupUser = () => {
     return {
         signUpUser,
         handleGoogleSignUp,
-        verifyEmailCode
+        verifyEmailCode,
+        loading,
+        error
     }
 
 
