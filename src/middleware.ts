@@ -1,13 +1,16 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-const isPublicRoute = createRouteMatcher(['/auth/login(.*)', '/auth/signup(.*)'])
+const isPublicRoute = createRouteMatcher([
+  '/auth/login(.*)',
+  '/auth/signup(.*)',
+  '/sso-callback(.*)',  // Clerk's OAuth SSO handler — must be public
+])
 
 export default clerkMiddleware(async (auth, req) => {
-  const newUrl = new URL('auth/login', req.url).toString()
   if (!isPublicRoute(req)) {
-     await auth.protect({
-      unauthenticatedUrl:newUrl
-     })
+    await auth.protect({
+      unauthenticatedUrl: new URL('/auth/login', req.url).toString()
+    })
   }
 })
 

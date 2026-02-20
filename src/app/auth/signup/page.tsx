@@ -1,10 +1,11 @@
 'use client'
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Loader2 } from 'lucide-react'
 import { useSignupUser } from '@/hooks/use-signup'
 
 
-type STEP = 'CREDENTIALS' | 'ORGANIZATION_DATA' | 'VERIFICATION'
+type STEP = 'CREDENTIALS' | 'ORGANIZATION_DATA' | 'VERIFICATION' | 'OAUTH_CONTINUE'
 
 type FormDataSignUp = {
     email: string,
@@ -22,7 +23,7 @@ type FormDataSignUp = {
 
 const Page: React.FC = () => {
 
-    const { signUpUser, verifyEmailCode, handleGoogleSignUp, error:loginError, loading } = useSignupUser()
+    const { signUpUser, verifyEmailCode, handleGoogleSignUp, oauthContinue, signUpStatus, error: loginError, loading } = useSignupUser()
     const [error, setError] = useState<string>('')
     const router = useRouter()
     const [step, setStep] = useState<STEP>('CREDENTIALS')
@@ -37,9 +38,21 @@ const Page: React.FC = () => {
         userName: ''
     })
 
-    useEffect(()=>{
+    const [oauthUsername, setOauthUsername] = useState('')
+
+    useEffect(() => {
         setError(loginError)
-    },[loginError])
+    }, [loginError])
+
+    // Detect when Clerk redirects back with #/continue (OAuth with missing username)
+    useEffect(() => {
+        const isOAuthContinue =
+            window.location.hash === '#/continue' ||
+            signUpStatus === 'missing_requirements'
+        if (isOAuthContinue) {
+            setStep('OAUTH_CONTINUE')
+        }
+    }, [signUpStatus])
 
     const nextDisabled = () => {
         if (step === 'CREDENTIALS') {
@@ -69,7 +82,8 @@ const Page: React.FC = () => {
             setError('Please enter all the details')
             return
         }
-        await signUpUser({ email, password, firstName, lastName, organizationName, source, userName, setStep })
+        const result = await signUpUser({ email, password, firstName, lastName, organizationName, source, userName })
+        if (result) setStep('VERIFICATION')
     }
 
     const handleVerification = async (_formData: FormData) => {
@@ -105,7 +119,7 @@ const Page: React.FC = () => {
                 </div>
 
 
-                {error.length>0&&<div className='w-full h-auto px-4 py-2 bg-destructive-foreground border-1 border-destructive rounded-md text-destructive text-center'>
+                {error.length > 0 && <div className='w-full h-auto px-4 py-2 bg-destructive-foreground border-1 border-destructive rounded-md text-destructive text-center'>
                     {error}
                 </div>}
 
@@ -180,8 +194,8 @@ const Page: React.FC = () => {
                         </div>
                     </div>
 
-                    {step==='ORGANIZATION_DATA'&&<input disabled={nextDisabled()} className={`w-full flex items-center justify-center gap-2 ${nextDisabled() ? 'bg-secondary cursor-not-allowed' : 'bg-primary cursor-pointer'}  rounded-md p-2  text-background`} type="submit" value='SUBMIT' />}
-                    {step==='CREDENTIALS'&&<button disabled={nextDisabled()} className={`w-full flex items-center justify-center gap-2 ${nextDisabled() ? 'bg-secondary cursor-not-allowed' : 'bg-primary cursor-pointer'}  rounded-md p-2  text-background`} type="button" onClick={handleFirstStepChange}>NEXT</button>}
+                    {step === 'ORGANIZATION_DATA' && <input disabled={nextDisabled()} className={`w-full flex items-center justify-center gap-2 ${nextDisabled() ? 'bg-secondary cursor-not-allowed' : 'bg-primary cursor-pointer'}  rounded-md p-2  text-background`} type="submit" value='SUBMIT' />}
+                    {step === 'CREDENTIALS' && <button disabled={nextDisabled()} className={`w-full flex items-center justify-center gap-2 ${nextDisabled() ? 'bg-secondary cursor-not-allowed' : 'bg-primary cursor-pointer'}  rounded-md p-2  text-background`} type="button" onClick={handleFirstStepChange}>NEXT</button>}
 
 
                 </form>
@@ -209,6 +223,46 @@ const Page: React.FC = () => {
             {step === 'CREDENTIALS' && <div className='text-primary'>already have an account? <span onClick={() => {
                 router.push('/auth/login')
             }} className='text-foreground underline cursor-pointer'>Login</span></div>}
+
+            {step === 'OAUTH_CONTINUE' && (
+                <div className='w-full flex flex-col items-center justify-center gap-6 text-accent-foreground px-10'>
+                    <div className='flex flex-col items-center justify-center gap-2 text-center'>
+                        <div className='text-xl font-bold'>One last step</div>
+                        <p className='text-sm text-muted-foreground'>
+                            Pick a username to complete your MockBird account
+                        </p>
+                    </div>
+
+                    {error.length > 0 && (
+                        <div className='w-full px-4 py-2 bg-destructive-foreground border border-destructive rounded-md text-destructive text-center text-sm'>
+                            {error}
+                        </div>
+                    )}
+
+                    <div className='w-full flex flex-col gap-2'>
+                        <label className='text-sm font-medium' htmlFor='oauth-username'>Username</label>
+                        <input
+                            id='oauth-username'
+                            type='text'
+                            value={oauthUsername}
+                            onChange={e => setOauthUsername(e.target.value)}
+                            placeholder='e.g. john_doe'
+                            className='w-full border rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-primary bg-background'
+                            onKeyDown={e => { if (e.key === 'Enter' && oauthUsername.trim()) oauthContinue(oauthUsername.trim()) }}
+                        />
+                    </div>
+
+                    <button
+                        disabled={!oauthUsername.trim() || loading}
+                        onClick={() => oauthContinue(oauthUsername.trim())}
+                        className={`w-full flex items-center justify-center gap-2 rounded-md p-2 text-background transition-colors
+                            ${!oauthUsername.trim() || loading ? 'bg-secondary cursor-not-allowed' : 'bg-primary cursor-pointer hover:bg-primary/90'}`}
+                    >
+                        {loading ? <Loader2 size={16} className='animate-spin' /> : null}
+                        {loading ? 'Completing…' : 'Continue to MockBird'}
+                    </button>
+                </div>
+            )}
         </div>
     )
 }

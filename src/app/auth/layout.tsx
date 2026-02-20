@@ -14,7 +14,7 @@ const LayoutAuth:React.FC<layout> = ({children}) => {
 
   useEffect(()=>{
     if(isSignedIn){
-      router.push('/')
+      router.push('/dashboard')
     }
   },[isLoaded])
 
