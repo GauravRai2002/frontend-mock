@@ -44,10 +44,11 @@ const Page: React.FC = () => {
 
     // Detect when Clerk redirects back with #/continue (OAuth with missing username)
     useEffect(() => {
-        const isOAuthContinue =
-            window.location.hash === '#/continue' ||
-            signUpStatus === 'missing_requirements'
-        if (isOAuthContinue) {
+        // Only trigger OAUTH_CONTINUE if they actually came from an OAuth flow
+        // The '#' check is reliable since Clerk appends it.
+        // If we just check `signUpStatus === 'missing_requirements'`, it breaks 
+        // the normal email flow because email unverified also gives 'missing_requirements'.
+        if (window.location.hash === '#/continue') {
             setStep('OAUTH_CONTINUE')
         }
     }, [signUpStatus])

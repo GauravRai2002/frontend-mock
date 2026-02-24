@@ -24,7 +24,7 @@ export const useSignupUser = () => {
 
         try {
             setLoading(true)
-            const createResult: any = await signUp.create({
+            await signUp.create({
                 emailAddress: email,
                 password: password,
                 firstName: firstName,
@@ -36,8 +36,20 @@ export const useSignupUser = () => {
                 },
             })
 
-            await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
-            return createResult
+            const prepareResult = await signUp.prepareEmailAddressVerification({ strategy: "email_code" })
+
+            // If the status is 'missing_requirements' but 'email_address' is in unverifiedFields,
+            // it means the code was successfully sent and we should show the verification UI.
+            if (
+                prepareResult.status === 'missing_requirements' &&
+                prepareResult.unverifiedFields.includes('email_address')
+            ) {
+                setLoading(false)
+                return true
+            }
+
+            setLoading(false)
+            return false
         } catch (err: any) {
             console.error(err)
             setError(err.errors?.[0]?.message || 'Something went wrong')
