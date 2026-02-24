@@ -69,14 +69,10 @@ const Page: React.FC = () => {
         setLocalError('')
     }
 
-    const handleSubmit = async (formdata: FormData) => {
-        const email = formdata.get('email') as string
-        const password = formdata.get('password') as string
-        const organizationName = formdata.get('organizationName') as string
-        const firstName = formdata.get('firstName') as string
-        const lastName = formdata.get('lastName') as string
-        const source = formdata.get('source') as string
-        const userName = formdata.get('userName') as string
+    const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
+        if (e) e.preventDefault();
+
+        const { email, password, organizationName, firstName, lastName, source, userName } = formData
 
         if (!email || !password || !firstName || !lastName || !userName || !organizationName) {
             setLocalError('Please enter all the details')
@@ -165,7 +161,7 @@ const Page: React.FC = () => {
                             </div>
                         )}
 
-                        <form className='flex flex-col w-full gap-5' onChange={handleInputChange} action={step === 'ORGANIZATION_DATA' ? handleSubmit : () => { }}>
+                        <form className='flex flex-col w-full gap-5' onChange={handleInputChange} onSubmit={step === 'ORGANIZATION_DATA' ? handleSubmit : (e) => e.preventDefault()}>
 
                             {step === 'CREDENTIALS' && (
                                 <div className='flex flex-col gap-4 animate-in fade-in slide-in-from-left-4 duration-300'>
