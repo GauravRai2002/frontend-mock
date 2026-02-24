@@ -1,6 +1,8 @@
 'use client'
 import React, { useRef } from 'react'
 import { RotateCcw, Check } from 'lucide-react'
+import ConditionsBuilder from './ConditionsBuilder'
+import { type Condition } from '@/lib/api'
 
 const STATUS_CODES = [200, 201, 204, 400, 401, 403, 404, 409, 422, 500, 502, 503]
 const CONTENT_TYPES = [
@@ -36,10 +38,12 @@ interface ResponseEditorProps {
     statusCode: number
     delay: number
     contentType: string
+    conditions: Condition[]
     onBodyChange: (v: string) => void
     onStatusCodeChange: (v: number) => void
     onDelayChange: (v: number) => void
     onContentTypeChange: (v: string) => void
+    onConditionsChange: (v: Condition[]) => void
 }
 
 const ResponseEditor = ({
@@ -47,10 +51,12 @@ const ResponseEditor = ({
     statusCode,
     delay,
     contentType,
+    conditions,
     onBodyChange,
     onStatusCodeChange,
     onDelayChange,
     onContentTypeChange,
+    onConditionsChange,
 }: ResponseEditorProps) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -159,6 +165,11 @@ const ResponseEditor = ({
           "
                     placeholder={DEFAULT_JSON}
                 />
+            </div>
+
+            {/* Conditions section */}
+            <div className="border-t border-border px-4 py-3 flex-shrink-0">
+                <ConditionsBuilder conditions={conditions} onChange={onConditionsChange} />
             </div>
         </div>
     )

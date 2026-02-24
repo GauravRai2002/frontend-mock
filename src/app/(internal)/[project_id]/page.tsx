@@ -20,8 +20,10 @@ import {
   deleteMockResponse,
   getMockResponses,
   parseResponseHeaders,
+  parseConditions,
   type ProjectDetail,
   type MockResponse,
+  type Condition,
 } from '@/lib/api'
 
 const DEFAULT_BODY = `{
@@ -70,6 +72,7 @@ const ProjectPage = () => {
   // Per-mock responses
   const [responsesMap, setResponsesMap] = useState<Record<string, MockResponse[]>>({})
   const [activeResponseId, setActiveResponseId] = useState<string | null>(null)
+  const [conditions, setConditions] = useState<Condition[]>([])
 
   // ── Load project + mocks ──────────────────────────────────────────────
   const loadProject = useCallback(async () => {
@@ -117,6 +120,7 @@ const ProjectPage = () => {
     const resps = responsesMap[activeId] ?? []
     const def = resps.find(r => r.is_default === 1) ?? resps[0]
     setActiveResponseId(def?.response_id ?? null)
+    setConditions(def ? parseConditions(def.conditions) : [])
   }, [activeId])
 
   // ── Add new endpoint ──────────────────────────────────────────────────
@@ -186,6 +190,7 @@ const ProjectPage = () => {
   const handleResponseSelect = (r: MockResponse) => {
     if (!activeId) return
     setActiveResponseId(r.response_id)
+    setConditions(parseConditions(r.conditions))
     setEndpoints(prev => prev.map(ep =>
       ep.id === activeId ? {
         ...ep,
@@ -310,6 +315,7 @@ const ProjectPage = () => {
         headers: headersObj,
         body: ep.body,
         isDefault: true,
+        conditions: conditions,
       }
 
       if (ep._responseId) {
@@ -396,6 +402,8 @@ const ProjectPage = () => {
               onDelete={() => handleDelete(activeEndpoint.id)}
               onToggleActive={handleToggleActive}
               onDuplicate={handleDuplicate}
+              conditions={conditions}
+              onConditionsChange={setConditions}
             />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">

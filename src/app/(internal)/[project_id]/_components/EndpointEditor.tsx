@@ -7,7 +7,7 @@ import RequestBodyEditor from './RequestBodyEditor'
 import ResponsesPanel from './ResponsesPanel'
 import RequestLogsTab from './RequestLogsTab'
 import { type MockEndpoint } from './EndpointList'
-import { type MockResponse } from '@/lib/api'
+import { type MockResponse, type Condition } from '@/lib/api'
 
 type Tab = 'body' | 'response' | 'headers' | 'settings' | 'logs'
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD'
@@ -29,6 +29,8 @@ interface EndpointEditorProps {
     onDelete?: () => void
     onToggleActive?: (isActive: boolean) => Promise<void>
     onDuplicate?: () => Promise<void>
+    conditions?: Condition[]
+    onConditionsChange?: (conditions: Condition[]) => void
 }
 
 const EndpointEditor = ({
@@ -46,6 +48,8 @@ const EndpointEditor = ({
     onDelete,
     onToggleActive,
     onDuplicate,
+    conditions = [],
+    onConditionsChange,
 }: EndpointEditorProps) => {
     const supportsBody = BODY_METHODS.has(endpoint.method.toUpperCase())
     const [activeTab, setActiveTab] = useState<Tab>(supportsBody ? 'body' : 'response')
@@ -146,10 +150,12 @@ const EndpointEditor = ({
                             statusCode={endpoint.statusCode}
                             delay={endpoint.delay}
                             contentType={endpoint.contentType}
+                            conditions={conditions}
                             onBodyChange={(body: string) => update({ body })}
                             onStatusCodeChange={(statusCode: number) => update({ statusCode })}
                             onDelayChange={(delay: number) => update({ delay })}
                             onContentTypeChange={(contentType: string) => update({ contentType })}
+                            onConditionsChange={onConditionsChange ?? (() => { })}
                         />
                     )}
                     {activeTab === 'headers' && (

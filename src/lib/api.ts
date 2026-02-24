@@ -43,6 +43,21 @@ export interface OrgMember {
     }
 }
 
+export interface OrgInvitation {
+    id: string
+    emailAddress: string
+    role: string
+    status: string
+    createdAt: string
+}
+
+export interface Condition {
+    type: 'header' | 'query' | 'body' | 'path'
+    field: string
+    operator: 'equals' | 'contains' | 'regex'
+    value: string
+}
+
 export interface OrgMembersResponse {
     data: OrgMember[]
     totalCount: number
@@ -119,6 +134,8 @@ export interface MockResponse {
     body: string
     is_default: number
     weight: number
+    /** JSON string — array of Condition objects */
+    conditions: string
     created_at: string
 }
 
@@ -211,6 +228,49 @@ export async function getOrganizationMembers(
     if (opts?.offset) params.set('offset', String(opts.offset))
     const qs = params.toString()
     return apiFetch<OrgMembersResponse>(`/organizations/${orgId}/members${qs ? `?${qs}` : ''}`, token)
+}
+
+export async function createOrganization(
+    token: string,
+    payload: { name: string; slug?: string }
+): Promise<Organization> {
+    return apiFetch<Organization>('/organizations', token, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function inviteOrgMember(
+    token: string,
+    orgId: string,
+    payload: { emailAddress: string; role?: string }
+): Promise<OrgInvitation> {
+    return apiFetch<OrgInvitation>(`/organizations/${orgId}/invitations`, token, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function removeOrgMember(
+    token: string,
+    orgId: string,
+    membershipId: string
+): Promise<void> {
+    await apiFetch<void>(`/organizations/${orgId}/members/${membershipId}`, token, {
+        method: 'DELETE',
+    })
+}
+
+export async function updateOrgMemberRole(
+    token: string,
+    orgId: string,
+    membershipId: string,
+    payload: { role: string }
+): Promise<OrgMember> {
+    return apiFetch<OrgMember>(`/organizations/${orgId}/members/${membershipId}`, token, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+    })
 }
 
 // ─── Projects ─────────────────────────────────────────────────────────────
@@ -344,6 +404,7 @@ export async function createMockResponse(
         body?: string
         isDefault?: boolean
         weight?: number
+        conditions?: Condition[]
     }
 ): Promise<MockResponse> {
     const res = await apiFetch<{ data: MockResponse }>(`/mocks/${mockId}/responses`, token, {
@@ -364,6 +425,7 @@ export async function updateMockResponse(
         body?: string
         isDefault?: boolean
         weight?: number
+        conditions?: Condition[]
     }
 ): Promise<MockResponse> {
     const res = await apiFetch<{ data: MockResponse }>(
@@ -403,6 +465,12 @@ export async function getMockRequestLogs(
 /** Parse the headers JSON string returned by the API */
 export function parseResponseHeaders(headersStr: string): Record<string, string> {
     try { return JSON.parse(headersStr) } catch { return {} }
+}
+
+/** Parse the conditions JSON string returned by the API */
+export function parseConditions(conditionsStr: string | undefined | null): Condition[] {
+    if (!conditionsStr) return []
+    try { return JSON.parse(conditionsStr) } catch { return [] }
 }
 
 /** Build the public mock execution URL */

@@ -11,10 +11,12 @@ import {
     updateMockResponse,
     deleteMockResponse,
     parseResponseHeaders,
+    parseConditions,
     type ProjectDetail,
     type Mock,
     type MockDetail,
     type MockResponse,
+    type Condition,
 } from '@/lib/api'
 
 // ─── Project + mocks loader ───────────────────────────────────────────────
@@ -128,6 +130,7 @@ export function useMockResponseActions(mockId: string | null) {
         body?: string
         isDefault?: boolean
         weight?: number
+        conditions?: Condition[]
     }): Promise<MockResponse> => {
         if (!mockId) throw new Error('No mock selected')
         const token = await getToken()
@@ -142,6 +145,7 @@ export function useMockResponseActions(mockId: string | null) {
         body?: string
         isDefault?: boolean
         weight?: number
+        conditions?: Condition[]
     }): Promise<MockResponse> => {
         if (!mockId) throw new Error('No mock selected')
         const token = await getToken()
@@ -159,4 +163,4 @@ export function useMockResponseActions(mockId: string | null) {
     return { create, update, remove }
 }
 
-export { parseResponseHeaders }
+export { parseResponseHeaders, parseConditions }
