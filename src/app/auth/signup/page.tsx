@@ -83,11 +83,13 @@ const Page: React.FC = () => {
         if (result) setStep('VERIFICATION')
     }
 
-    const handleVerification = async (_formData: FormData) => {
-        const code = _formData.get('code') as string
+    const handleVerification = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault()
+        const formData = new FormData(e.currentTarget)
+        const code = formData.get('code') as string
 
         try {
-            await verifyEmailCode({ verificationCode: code, orgName: formData.organizationName })
+            await verifyEmailCode({ verificationCode: code, orgName: formData.get('organizationName') as string || '' })
             // router.push('/')
         } catch (err) {
             console.error(err)
@@ -252,7 +254,7 @@ const Page: React.FC = () => {
                                 {localError}
                             </div>
                         )}
-                        <form className='flex flex-col w-full gap-5' action={handleVerification}>
+                        <form className='flex flex-col w-full gap-5' onSubmit={handleVerification}>
                             <div className='flex flex-col gap-2'>
                                 <label className='text-sm font-medium text-foreground' htmlFor="code">Verification Code</label>
                                 <input className='w-full rounded-lg bg-background text-foreground p-3 text-center tracking-widest text-lg font-mono border border-border/50 focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all' type="text" name="code" id="code" placeholder="000000" maxLength={6} />
@@ -262,7 +264,7 @@ const Page: React.FC = () => {
                                 type="submit"
                                 disabled={loading}
                                 className={`mt-2 w-full flex items-center justify-center gap-2 rounded-lg p-3 text-sm font-semibold transition-all duration-200 
-                                    ${loading ? 'bg-secondary/50 text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(255,165,0,0.15)] hover:shadow-[0_0_20px_rgba(255,165,0,0.25)]'}`}
+                                    ${loading ? 'bg-secondary/50 text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_15px_rgba(255,165,0,0.15)] hover:shadow-[0_0_20px_rgba(255,165,0,0.25)] cursor-pointer'}`}
                             >
                                 {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                                 {loading ? 'Verifying...' : 'Verify Email'}
