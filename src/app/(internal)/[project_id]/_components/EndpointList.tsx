@@ -1,6 +1,6 @@
 'use client'
 import React from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Loader2 } from 'lucide-react'
 
 const METHOD_COLORS: Record<string, string> = {
     GET: 'text-[#3B82F6]',
@@ -23,6 +23,7 @@ export interface MockEndpoint {
     requestBody: string
     requestBodyContentType: string
     headers: { key: string; value: string }[]
+    expectedHeaders: { key: string; value: string }[]
     contentType: string
 }
 
@@ -32,9 +33,11 @@ interface EndpointListProps {
     onSelect: (id: string) => void
     onAdd: () => void
     onDelete: (id: string) => void
+    isAdding?: boolean
+    deletingId?: string | null
 }
 
-const EndpointList = ({ endpoints, activeId, onSelect, onAdd, onDelete }: EndpointListProps) => {
+const EndpointList = ({ endpoints, activeId, onSelect, onAdd, onDelete, isAdding, deletingId }: EndpointListProps) => {
     return (
         <div className="flex flex-col h-full bg-sidebar border-r border-sidebar-border flex-shrink-0 w-[240px]">
             {/* Header */}
@@ -44,10 +47,11 @@ const EndpointList = ({ endpoints, activeId, onSelect, onAdd, onDelete }: Endpoi
                 </span>
                 <button
                     onClick={onAdd}
-                    className="text-muted-foreground hover:text-primary transition-colors cursor-pointer p-0.5 rounded"
+                    disabled={isAdding}
+                    className="text-muted-foreground hover:text-primary transition-colors cursor-pointer p-0.5 rounded disabled:opacity-50"
                     title="Add endpoint"
                 >
-                    <Plus size={14} />
+                    {isAdding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                 </button>
             </div>
 
@@ -93,12 +97,14 @@ const EndpointList = ({ endpoints, activeId, onSelect, onAdd, onDelete }: Endpoi
                                 </span>
                             </div>
 
-                            {/* Delete */}
                             <button
                                 onClick={(e) => { e.stopPropagation(); onDelete(ep.id) }}
-                                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all cursor-pointer flex-shrink-0"
+                                disabled={deletingId === ep.id}
+                                className={`transition-all cursor-pointer flex-shrink-0
+                                  ${deletingId === ep.id ? 'opacity-100 text-muted-foreground' : 'opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive'}
+                                `}
                             >
-                                <Trash2 size={12} />
+                                {deletingId === ep.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
                             </button>
                         </div>
                     ))
@@ -109,10 +115,11 @@ const EndpointList = ({ endpoints, activeId, onSelect, onAdd, onDelete }: Endpoi
             <div className="p-2 border-t border-sidebar-border flex-shrink-0">
                 <button
                     onClick={onAdd}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/50 rounded-md transition-all cursor-pointer"
+                    disabled={isAdding}
+                    className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-muted-foreground hover:text-primary border border-dashed border-border hover:border-primary/50 rounded-md transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    <Plus size={12} />
-                    Add endpoint
+                    {isAdding ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}
+                    {isAdding ? 'Adding...' : 'Add endpoint'}
                 </button>
             </div>
         </div>

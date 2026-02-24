@@ -1,16 +1,17 @@
 'use client'
 import React, { useState, useRef, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
 
 interface CreateProjectModalProps {
     onClose: () => void
-    onCreate: (name: string, description: string) => void
+    onCreate: (name: string, description: string) => Promise<void>
     error?: string | null
 }
 
 const CreateProjectModal = ({ onClose, onCreate, error }: CreateProjectModalProps) => {
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
+    const [creating, setCreating] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
 
     useEffect(() => {
@@ -28,10 +29,15 @@ const CreateProjectModal = ({ onClose, onCreate, error }: CreateProjectModalProp
 
     const slug = name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!name.trim()) return
-        onCreate(name.trim(), description.trim())
+        setCreating(true)
+        try {
+            await onCreate(name.trim(), description.trim())
+        } finally {
+            setCreating(false)
+        }
     }
 
     return (
@@ -97,9 +103,10 @@ const CreateProjectModal = ({ onClose, onCreate, error }: CreateProjectModalProp
                         </button>
                         <button
                             type="submit"
-                            disabled={!name.trim()}
-                            className="px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            disabled={!name.trim() || creating}
+                            className="flex items-center gap-1.5 px-4 py-1.5 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
+                            {creating && <Loader2 size={12} className="animate-spin" />}
                             Create project
                         </button>
                     </div>

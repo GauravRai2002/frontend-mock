@@ -1,7 +1,7 @@
 'use client'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@clerk/nextjs'
-import { Loader2, RefreshCw, AlertCircle, Clock, Globe, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Loader2, RefreshCw, AlertCircle, Clock, Globe, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react'
 import { getMockRequestLogs, parseResponseHeaders, type RequestLog } from '@/lib/api'
 
 interface RequestLogsTabProps {
@@ -23,6 +23,13 @@ const STATUS_COLOR = (code: number) => {
     return 'text-[#EF4444]'
 }
 
+const STATUS_BG = (code: number) => {
+    if (code < 300) return 'text-[#22C55E] bg-[#22C55E]/10'
+    if (code < 400) return 'text-[#3B82F6] bg-[#3B82F6]/10'
+    if (code < 500) return 'text-[#F97316] bg-[#F97316]/10'
+    return 'text-[#EF4444] bg-[#EF4444]/10'
+}
+
 function timeAgo(dateStr: string) {
     const diff = Date.now() - new Date(dateStr).getTime()
     const s = Math.floor(diff / 1000)
@@ -33,6 +40,72 @@ function timeAgo(dateStr: string) {
     if (h < 24) return `${h}h ago`
     return new Date(dateStr).toLocaleDateString()
 }
+
+function tryPrettyJson(raw: string): string {
+    try {
+        return JSON.stringify(JSON.parse(raw), null, 2)
+    } catch {
+        return raw
+    }
+}
+
+/** Copyable code block with a toolbar */
+const CodeBlock = ({ label, content }: { label: string; content: string }) => {
+    const [copied, setCopied] = useState(false)
+    const handleCopy = () => {
+        navigator.clipboard.writeText(content)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1800)
+    }
+    return (
+        <div className="rounded-md border border-border overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-muted/60 border-b border-border">
+                <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</span>
+                <button onClick={handleCopy} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                    {copied ? <Check size={10} className="text-primary" /> : <Copy size={10} />}
+                    {copied ? 'Copied!' : 'Copy'}
+                </button>
+            </div>
+            <pre className="p-3 text-[11px] font-mono text-foreground overflow-auto max-h-52 leading-relaxed whitespace-pre-wrap break-all bg-background">{content}</pre>
+        </div>
+    )
+}
+
+/** Key-value headers table */
+const HeadersTable = ({ raw }: { raw: string }) => {
+    const entries = Object.entries(parseResponseHeaders(raw))
+    if (entries.length === 0) return null
+    return (
+        <div className="rounded-md border border-border overflow-hidden">
+            <table className="w-full text-left">
+                <tbody>
+                    {entries.map(([key, value]) => (
+                        <tr key={key} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
+                            <td className="px-3 py-1.5 text-[10px] font-medium text-foreground w-2/5 break-all align-top border-r border-border/50 bg-muted/20">{key}</td>
+                            <td className="px-3 py-1.5 text-[10px] text-muted-foreground font-mono break-all align-top">{value as string}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    )
+}
+
+/** Centered divider section header */
+const SectionHeader = ({ title }: { title: string }) => (
+    <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2.5 flex items-center gap-2">
+        <span className="flex-1 h-px bg-border" />
+        {title}
+        <span className="flex-1 h-px bg-border" />
+    </h3>
+)
+
+const Row = ({ label, value, mono }: { label: string; value: string; mono?: boolean }) => (
+    <div className="flex items-start gap-3">
+        <span className="text-muted-foreground w-8 flex-shrink-0 text-[11px] font-medium">{label}</span>
+        <span className={`text-foreground break-all text-[11px] ${mono ? 'font-mono' : ''}`}>{value}</span>
+    </div>
+)
 
 const RequestLogsTab = ({ mockId }: RequestLogsTabProps) => {
     const { getToken } = useAuth()
@@ -152,63 +225,84 @@ const RequestLogsTab = ({ mockId }: RequestLogsTabProps) => {
                         <p className="text-xs">Select a log entry to see details</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-4 text-xs">
-                        {/* Request */}
+                    <div className="flex flex-col gap-5 text-xs">
+
+                        {/* ── Overview pill row ─────────────────────── */}
+                        <div className="flex items-center gap-2 flex-wrap pb-1">
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md font-mono ${methodStyle(selected.request_method)}`}>
+                                {selected.request_method}
+                            </span>
+                            <span className="text-sm font-mono text-foreground font-medium flex-1 break-all">{selected.request_path}</span>
+                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md font-mono ${STATUS_BG(selected.response_status)}`}>
+                                {selected.response_status}
+                            </span>
+                            <span className="text-xs text-muted-foreground">{selected.response_time_ms}ms</span>
+                        </div>
+
+                        {/* ── Request meta ──────────────────────────── */}
                         <section>
-                            <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Request</h3>
-                            <div className="flex flex-col gap-1">
-                                <Row label="Method" value={selected.request_method} mono />
-                                <Row label="Path" value={selected.request_path} mono />
+                            <SectionHeader title="Request" />
+                            <div className="flex flex-col gap-1.5">
                                 <Row label="IP" value={selected.ip_address} mono />
-                                <Row label="UA" value={selected.user_agent} />
                                 <Row label="Time" value={new Date(selected.created_at).toLocaleString()} />
-                                {selected.request_query && selected.request_query !== '{}' && (
-                                    <div>
-                                        <span className="text-muted-foreground">Query: </span>
-                                        <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-auto">{
-                                            JSON.stringify(JSON.parse(selected.request_query), null, 2)
-                                        }</pre>
-                                    </div>
-                                )}
-                                {selected.request_body && (
-                                    <div>
-                                        <span className="text-muted-foreground">Body: </span>
-                                        <pre className="mt-1 p-2 bg-muted rounded text-[10px] overflow-auto">{selected.request_body}</pre>
-                                    </div>
-                                )}
+                                {selected.user_agent && <Row label="UA" value={selected.user_agent} />}
                             </div>
                         </section>
 
-                        {/* Response */}
+                        {/* ── Query params ──────────────────────────── */}
+                        {selected.request_query && selected.request_query !== '{}' && (
+                            <section>
+                                <SectionHeader title="Query Params" />
+                                <CodeBlock label="query" content={tryPrettyJson(selected.request_query)} />
+                            </section>
+                        )}
+
+                        {/* ── Request body ──────────────────────────── */}
+                        {selected.request_body && (
+                            <section>
+                                <SectionHeader title="Request Body" />
+                                <CodeBlock label="body" content={tryPrettyJson(selected.request_body)} />
+                            </section>
+                        )}
+
+                        {/* ── Request headers ───────────────────────── */}
+                        {selected.request_headers && selected.request_headers !== '{}' && (
+                            <section>
+                                <SectionHeader title="Request Headers" />
+                                <HeadersTable raw={selected.request_headers} />
+                            </section>
+                        )}
+
+                        {/* ── Response meta ─────────────────────────── */}
                         <section>
-                            <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Response</h3>
-                            <div className="flex flex-col gap-1">
+                            <SectionHeader title="Response" />
+                            <div className="flex flex-col gap-1.5">
                                 <Row label="Status" value={String(selected.response_status)} mono />
                                 <Row label="Time" value={`${selected.response_time_ms}ms`} mono />
                             </div>
                         </section>
 
-                        {/* Request headers */}
-                        {selected.request_headers && selected.request_headers !== '{}' && (
+                        {/* ── Response headers ──────────────────────── */}
+                        {selected.response_headers && selected.response_headers !== '{}' && (
                             <section>
-                                <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Request Headers</h3>
-                                <pre className="p-2 bg-muted rounded text-[10px] overflow-auto">
-                                    {JSON.stringify(parseResponseHeaders(selected.request_headers), null, 2)}
-                                </pre>
+                                <SectionHeader title="Response Headers" />
+                                <HeadersTable raw={selected.response_headers} />
                             </section>
                         )}
+
+                        {/* ── Response body ─────────────────────────── */}
+                        {selected.response_body && (
+                            <section>
+                                <SectionHeader title="Response Body" />
+                                <CodeBlock label="body" content={tryPrettyJson(selected.response_body)} />
+                            </section>
+                        )}
+
                     </div>
                 )}
             </div>
         </div>
     )
 }
-
-const Row = ({ label, value, mono }: { label: string; value: string; mono?: boolean }) => (
-    <div className="flex items-start gap-2">
-        <span className="text-muted-foreground w-12 flex-shrink-0">{label}</span>
-        <span className={`text-foreground break-all ${mono ? 'font-mono' : ''}`}>{value}</span>
-    </div>
-)
 
 export default RequestLogsTab

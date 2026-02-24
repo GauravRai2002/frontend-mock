@@ -119,6 +119,8 @@ export interface Mock {
     is_active: number
     response_type: string
     response_delay_ms: number
+    expected_body: string
+    expected_headers: string
     response_count?: number
     created_at: string
     updated_at: string
@@ -154,6 +156,8 @@ export interface RequestLog {
     request_query: string
     response_status: number
     response_time_ms: number
+    response_body?: string
+    response_headers?: string
     ip_address: string
     user_agent: string
     created_at: string
@@ -167,6 +171,24 @@ export interface RequestLogsResponse {
         total: number
         totalPages: number
     }
+}
+
+export interface Template {
+    id: string
+    name: string
+    description: string
+    endpointCount: number
+}
+
+export interface TemplateMock {
+    name: string
+    path: string
+    method: string
+    responses?: any[] // Simplified since UI mostly just needs method/path
+}
+
+export interface TemplateDetail extends Template {
+    mocks: TemplateMock[]
 }
 
 // ─── Custom Error ─────────────────────────────────────────────────────────
@@ -389,6 +411,8 @@ export async function createMock(
         description?: string
         responseType?: string
         responseDelay?: number
+        expectedBody?: string
+        expectedHeaders?: string
     }
 ): Promise<Mock> {
     const res = await apiFetch<{ data: Mock }>(`/projects/${projectId}/mocks`, token, {
@@ -414,6 +438,8 @@ export async function updateMock(
         responseType?: string
         responseDelay?: number
         isActive?: boolean
+        expectedBody?: string
+        expectedHeaders?: string
     }
 ): Promise<Mock> {
     const res = await apiFetch<{ data: Mock }>(`/mocks/${mockId}`, token, {
@@ -523,4 +549,27 @@ export function parseConditions(conditionsStr: string | undefined | null): Condi
 /** Build the public mock execution URL */
 export function getMockUrl(projectSlug: string, mockPath: string): string {
     return `${BASE_URL}/m/${projectSlug}${mockPath}`
+}
+
+// ─── Templates ─────────────────────────────────────────────────────────
+
+export async function getTemplates(token: string): Promise<Template[]> {
+    const res = await apiFetch<{ data: Template[] }>('/templates', token)
+    return res.data
+}
+
+export async function getTemplate(token: string, templateId: string): Promise<TemplateDetail> {
+    const res = await apiFetch<{ data: TemplateDetail }>(`/templates/${templateId}`, token)
+    return res.data
+}
+
+export async function applyTemplate(
+    token: string,
+    templateId: string,
+    payload: { projectName: string } | { projectId: string },
+): Promise<{ projectId: string; appliedMocks: number }> {
+    return apiFetch<{ projectId: string; appliedMocks: number }>(`/templates/${templateId}/apply`, token, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
 }

@@ -38,6 +38,11 @@ function apiMockToLocal(mock: any, defaultResponse?: MockResponse | null): MockE
     ? Object.entries(parseResponseHeaders(defaultResponse.headers)).map(([key, value]) => ({ key, value: value as string }))
     : [{ key: 'Content-Type', value: 'application/json' }]
 
+  const expectedHeadersObj = mock.expected_headers ? parseResponseHeaders(mock.expected_headers) : {}
+  const expectedHeaders = Object.keys(expectedHeadersObj).length > 0
+    ? Object.entries(expectedHeadersObj).map(([key, value]) => ({ key, value: value as string }))
+    : [{ key: '', value: '' }]
+
   return {
     id: mock.mock_id,
     method: mock.method,
@@ -50,8 +55,9 @@ function apiMockToLocal(mock: any, defaultResponse?: MockResponse | null): MockE
     contentType: mock.response_type === 'json' ? 'application/json'
       : mock.response_type === 'xml' ? 'application/xml'
         : mock.response_type === 'html' ? 'text/html' : 'application/json',
-    requestBody: '',
+    requestBody: mock.expected_body ?? '',
     requestBodyContentType: 'application/json',
+    expectedHeaders,
     is_active: mock.is_active ?? 1,
     _mockId: mock.mock_id,
     _responseId: defaultResponse?.response_id ?? null,
@@ -71,6 +77,9 @@ const ProjectPage = () => {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isAdding, setIsAdding] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [isDuplicating, setIsDuplicating] = useState(false)
 
   // Per-mock responses
   const [responsesMap, setResponsesMap] = useState<Record<string, MockResponse[]>>({})
@@ -88,13 +97,14 @@ const ProjectPage = () => {
       const proj = await getProject(token, projectId)
       setProject(proj)
 
+      const newResponsesMap: Record<string, MockResponse[]> = {}
       const fullMocks = await Promise.all(
         (proj.mocks ?? []).map(async (m) => {
           try {
             const detail = await getMock(token, m.mock_id)
             const responses = detail.responses ?? []
             const defaultResp = responses.find(r => r.is_default === 1) ?? responses[0] ?? null
-            setResponsesMap(prev => ({ ...prev, [m.mock_id]: responses }))
+            newResponsesMap[m.mock_id] = responses
             return apiMockToLocal(detail, defaultResp)
           } catch {
             return apiMockToLocal(m)
@@ -102,10 +112,12 @@ const ProjectPage = () => {
         })
       )
 
+      setResponsesMap(newResponsesMap)
       setEndpoints(fullMocks)
       if (fullMocks[0]) {
         setActiveId(fullMocks[0].id)
-        const defaultResp = responsesMap[fullMocks[0].id]?.find(r => r.is_default === 1) ?? responsesMap[fullMocks[0].id]?.[0]
+        const resps = newResponsesMap[fullMocks[0].id] ?? []
+        const defaultResp = resps.find(r => r.is_default === 1) ?? resps[0]
         setActiveResponseId(defaultResp?.response_id ?? null)
       }
     } catch (err: any) {
@@ -130,6 +142,7 @@ const ProjectPage = () => {
   // ── Add new endpoint ──────────────────────────────────────────────────
   const handleAdd = async () => {
     try {
+      setIsAdding(true)
       const token = await getToken()
       if (!token) return
       const newMock = await createMock(token, projectId, {
@@ -153,12 +166,15 @@ const ProjectPage = () => {
       setActiveResponseId(newResponse.response_id)
     } catch (err: any) {
       toast.error(friendlyApiError(err))
+    } finally {
+      setIsAdding(false)
     }
   }
 
   // ── Delete endpoint ───────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     try {
+      setDeletingId(id)
       const token = await getToken()
       if (!token) return
       await deleteMock(token, id)
@@ -172,6 +188,8 @@ const ProjectPage = () => {
       setResponsesMap(prev => { const n = { ...prev }; delete n[id]; return n })
     } catch (err: any) {
       toast.error(friendlyApiError(err))
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -267,6 +285,7 @@ const ProjectPage = () => {
   const handleDuplicate = async () => {
     if (!activeId) return
     try {
+      setIsDuplicating(true)
       const token = await getToken()
       if (!token) return
       const cloned = await duplicateMock(token, activeId)
@@ -281,6 +300,8 @@ const ProjectPage = () => {
       setActiveResponseId(defaultResp?.response_id ?? null)
     } catch (err: any) {
       toast.error(friendlyApiError(err))
+    } finally {
+      setIsDuplicating(false)
     }
   }
 
@@ -300,6 +321,9 @@ const ProjectPage = () => {
       const token = await getToken()
       if (!token) throw new Error('Not authenticated')
 
+      const expectedHeadersObj: Record<string, string> = {}
+      ep.expectedHeaders.forEach(h => { if (h.key) expectedHeadersObj[h.key] = h.value })
+
       await updateMock(token, ep.id, {
         name: ep.name,
         path: ep.path,
@@ -308,6 +332,8 @@ const ProjectPage = () => {
         responseType: ep.contentType.includes('json') ? 'json'
           : ep.contentType.includes('xml') ? 'xml'
             : ep.contentType.includes('html') ? 'html' : 'text',
+        expectedBody: ep.requestBody,
+        expectedHeaders: JSON.stringify(expectedHeadersObj),
       })
 
       const headersObj: Record<string, string> = {}
@@ -387,6 +413,8 @@ const ProjectPage = () => {
           onSelect={setActiveId}
           onAdd={handleAdd}
           onDelete={handleDelete}
+          isAdding={isAdding}
+          deletingId={deletingId}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -407,6 +435,8 @@ const ProjectPage = () => {
               onDelete={() => handleDelete(activeEndpoint.id)}
               onToggleActive={handleToggleActive}
               onDuplicate={handleDuplicate}
+              isDuplicating={isDuplicating}
+              isDeleting={deletingId === activeEndpoint.id}
               conditions={conditions}
               onConditionsChange={setConditions}
             />

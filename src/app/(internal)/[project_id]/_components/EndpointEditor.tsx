@@ -6,10 +6,11 @@ import HeadersEditor from './HeadersEditor'
 import RequestBodyEditor from './RequestBodyEditor'
 import ResponsesPanel from './ResponsesPanel'
 import RequestLogsTab from './RequestLogsTab'
+import { Loader2 } from 'lucide-react'
 import { type MockEndpoint } from './EndpointList'
 import { type MockResponse, type Condition } from '@/lib/api'
 
-type Tab = 'body' | 'response' | 'headers' | 'settings' | 'logs'
+type Tab = 'body' | 'response' | 'req_headers' | 'res_headers' | 'settings' | 'logs'
 type Method = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS' | 'HEAD'
 
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
@@ -29,6 +30,8 @@ interface EndpointEditorProps {
     onDelete?: () => void
     onToggleActive?: (isActive: boolean) => Promise<void>
     onDuplicate?: () => Promise<void>
+    isDuplicating?: boolean
+    isDeleting?: boolean
     conditions?: Condition[]
     onConditionsChange?: (conditions: Condition[]) => void
 }
@@ -48,11 +51,13 @@ const EndpointEditor = ({
     onDelete,
     onToggleActive,
     onDuplicate,
+    isDuplicating,
+    isDeleting,
     conditions = [],
     onConditionsChange,
 }: EndpointEditorProps) => {
     const supportsBody = BODY_METHODS.has(endpoint.method.toUpperCase())
-    const [activeTab, setActiveTab] = useState<Tab>(supportsBody ? 'body' : 'response')
+    const [activeTab, setActiveTab] = useState<Tab>('response')
     const [togglingActive, setTogglingActive] = useState(false)
 
     const handleMethodChange = (m: Method) => {
@@ -74,8 +79,9 @@ const EndpointEditor = ({
 
     const tabs: { id: Tab; label: string; show: boolean }[] = [
         { id: 'body', label: 'Body', show: supportsBody },
+        { id: 'req_headers', label: 'Req Headers', show: supportsBody },
         { id: 'response', label: 'Response', show: true },
-        { id: 'headers', label: 'Headers', show: true },
+        { id: 'res_headers', label: 'Res Headers', show: true },
         { id: 'logs', label: 'Logs', show: !!mockId },
         { id: 'settings', label: 'Settings', show: true },
     ]
@@ -113,7 +119,7 @@ const EndpointEditor = ({
               ${activeTab === tab.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
                     >
                         {tab.label}
-                        {tab.id === 'body' && (
+                        {(tab.id === 'body' || tab.id === 'req_headers') && (
                             <span className="text-[9px] px-1 py-0.5 rounded bg-primary/15 text-primary font-semibold leading-none">REQ</span>
                         )}
                     </button>
@@ -158,7 +164,13 @@ const EndpointEditor = ({
                             onConditionsChange={onConditionsChange ?? (() => { })}
                         />
                     )}
-                    {activeTab === 'headers' && (
+                    {activeTab === 'req_headers' && supportsBody && (
+                        <HeadersEditor
+                            headers={endpoint.expectedHeaders}
+                            onChange={(expectedHeaders: { key: string; value: string }[]) => update({ expectedHeaders })}
+                        />
+                    )}
+                    {activeTab === 'res_headers' && (
                         <HeadersEditor
                             headers={endpoint.headers}
                             onChange={(headers: { key: string; value: string }[]) => update({ headers })}
@@ -183,9 +195,9 @@ const EndpointEditor = ({
                                         type="button"
                                         onClick={handleToggleActive}
                                         disabled={togglingActive || !onToggleActive}
-                                        className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0 disabled:opacity-50 ${isActive ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+                                        className={`relative w-8 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0 disabled:opacity-50 ${isActive ? 'bg-primary' : 'bg-muted-foreground/30'}`}
                                     >
-                                        <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                                        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-3' : 'translate-x-0'}`} />
                                     </button>
                                 </div>
                             </div>
@@ -203,7 +215,29 @@ const EndpointEditor = ({
                                         onClick={() => navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'}/m/${projectSlug}${endpoint.path}`)}
                                         className="px-3 py-1.5 text-xs border border-border rounded-md hover:border-primary/50 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
                                     >
-                                        Copy
+                                        Copy URL
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const url = `${process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'}/m/${projectSlug}${endpoint.path}`
+                                            let curl = `curl -X ${endpoint.method} '${url}'`
+
+                                            // Add headers (default Content-Type if body exists, plus any custom expected headers if it's a real API testing context, but usually we just test the mock itself)
+                                            if (endpoint.requestBody && BODY_METHODS.has(endpoint.method.toUpperCase())) {
+                                                curl += ` \\\n  -H 'Content-Type: ${endpoint.requestBodyContentType}'`
+                                            }
+
+                                            if (endpoint.requestBody && BODY_METHODS.has(endpoint.method.toUpperCase())) {
+                                                // escape single quotes in body
+                                                const safeBody = endpoint.requestBody.replace(/'/g, "'\\''")
+                                                curl += ` \\\n  -d '${safeBody}'`
+                                            }
+
+                                            navigator.clipboard.writeText(curl)
+                                        }}
+                                        className="px-3 py-1.5 text-xs border border-border rounded-md hover:border-primary/50 text-muted-foreground hover:text-foreground transition-all cursor-pointer whitespace-nowrap"
+                                    >
+                                        Copy cURL
                                     </button>
                                 </div>
                             </div>
@@ -214,9 +248,11 @@ const EndpointEditor = ({
                                     <label className="text-xs font-medium text-foreground">Duplicate endpoint</label>
                                     <button
                                         onClick={onDuplicate}
-                                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground border border-border hover:border-primary/50 rounded-md transition-all cursor-pointer w-fit"
+                                        disabled={isDuplicating}
+                                        className="flex items-center gap-2 px-3 py-1.5 text-xs text-foreground border border-border hover:border-primary/50 rounded-md transition-all cursor-pointer w-fit disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
-                                        Clone this endpoint
+                                        {isDuplicating && <Loader2 size={12} className="animate-spin" />}
+                                        {isDuplicating ? 'Cloning...' : 'Clone this endpoint'}
                                     </button>
                                 </div>
                             )}
@@ -225,10 +261,11 @@ const EndpointEditor = ({
                             <div className="pt-4 border-t border-border">
                                 <button
                                     onClick={onDelete}
-                                    disabled={!onDelete}
+                                    disabled={!onDelete || isDeleting}
                                     className="flex items-center gap-2 px-3 py-1.5 text-xs text-destructive border border-destructive/30 hover:bg-destructive/10 rounded-md transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
-                                    Delete endpoint
+                                    {isDeleting && <Loader2 size={12} className="animate-spin" />}
+                                    {isDeleting ? 'Deleting...' : 'Delete endpoint'}
                                 </button>
                             </div>
                         </div>

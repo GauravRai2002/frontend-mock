@@ -117,20 +117,20 @@ const ResponsesPanel = ({
                         <div
                             key={r.response_id}
                             onClick={() => onSelect(r)}
-                            className={`group flex flex-col gap-1 px-3 py-2.5 cursor-pointer transition-colors relative
+                            className={`group flex flex-col gap-1 px-3 py-3 cursor-pointer transition-colors relative
                 ${activeResponseId === r.response_id ? 'bg-sidebar-accent border-l-2 border-primary' : 'hover:bg-sidebar-accent/60'}`}
                         >
                             {/* Row 1: status code + name + actions */}
-                            <div className="flex items-center gap-1.5">
-                                <span className={`text-[11px] font-bold font-mono ${statusClass(r.status_code)}`}>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-[12px] font-bold font-mono ${statusClass(r.status_code)}`}>
                                     {r.status_code}
                                 </span>
-                                <span className="text-[11px] text-foreground truncate flex-1">{r.name || 'Response'}</span>
+                                <span className="text-[12px] text-foreground font-medium truncate flex-1">{r.name || 'Response'}</span>
 
                                 {/* Default badge */}
                                 {r.is_default === 1 && (
                                     <span title="Default" className="flex-shrink-0 inline-flex">
-                                        <Check size={10} className="text-primary" />
+                                        <Check size={12} className="text-primary" />
                                     </span>
                                 )}
 
@@ -142,8 +142,8 @@ const ResponsesPanel = ({
                                         className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-primary cursor-pointer flex-shrink-0"
                                     >
                                         {settingDefaultId === r.response_id
-                                            ? <Loader2 size={10} className="animate-spin" />
-                                            : <Star size={10} />}
+                                            ? <Loader2 size={12} className="animate-spin" />
+                                            : <Star size={12} />}
                                     </button>
                                 )}
 
@@ -155,15 +155,15 @@ const ResponsesPanel = ({
                                         className="opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground hover:text-destructive cursor-pointer flex-shrink-0"
                                     >
                                         {deletingId === r.response_id
-                                            ? <Loader2 size={10} className="animate-spin" />
-                                            : <Trash2 size={10} />}
+                                            ? <Loader2 size={12} className="animate-spin" />
+                                            : <Trash2 size={12} />}
                                     </button>
                                 )}
                             </div>
 
                             {/* Row 2: weight input + probability bar (only when multiple responses) */}
                             {responses.length > 1 && (
-                                <div className="flex items-center gap-2 mt-0.5" onClick={e => e.stopPropagation()}>
+                                <div className="flex items-center gap-2 mt-1.5" onClick={e => e.stopPropagation()}>
                                     {/* Weight numeric input */}
                                     <div className="flex items-center gap-1 flex-shrink-0">
                                         <input
@@ -173,21 +173,21 @@ const ResponsesPanel = ({
                                             onChange={e => setDraftWeights(prev => ({ ...prev, [r.response_id]: e.target.value }))}
                                             onBlur={() => handleWeightBlur(r.response_id)}
                                             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                                            className="w-10 text-[10px] font-mono text-center bg-muted border border-border rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-ring appearance-none"
+                                            className="w-12 text-[11px] font-mono text-center text-foreground bg-background border border-border rounded-md px-1.5 py-1 focus:outline-none focus:ring-1 focus:ring-ring [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                             title="Weight (higher = more likely to be selected)"
                                         />
-                                        {isSavingWeight && <Loader2 size={9} className="animate-spin text-muted-foreground" />}
+                                        {isSavingWeight && <Loader2 size={10} className="animate-spin text-muted-foreground" />}
                                     </div>
 
                                     {/* Probability bar */}
-                                    <div className="flex-1 flex items-center gap-1">
-                                        <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                                    <div className="flex-1 flex items-center gap-2">
+                                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
                                             <div
-                                                className="h-full bg-primary/70 rounded-full transition-all duration-300"
+                                                className="h-full bg-primary rounded-full transition-all duration-300"
                                                 style={{ width: `${pct}%` }}
                                             />
                                         </div>
-                                        <span className="text-[9px] text-muted-foreground w-6 text-right">{pct}%</span>
+                                        <span className="text-[10px] text-muted-foreground w-6 text-right font-medium">{pct}%</span>
                                     </div>
                                 </div>
                             )}
