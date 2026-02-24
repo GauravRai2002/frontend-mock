@@ -8,6 +8,7 @@ import EndpointList from './_components/EndpointList'
 import EndpointEditor from './_components/EndpointEditor'
 import StatsBar from './_components/StatsBar'
 import { type MockEndpoint } from './_components/EndpointList'
+import { useToast } from '@/components/Toast'
 import {
   getProject,
   getMock,
@@ -21,6 +22,7 @@ import {
   getMockResponses,
   parseResponseHeaders,
   parseConditions,
+  friendlyApiError,
   type ProjectDetail,
   type MockResponse,
   type Condition,
@@ -60,6 +62,7 @@ const ProjectPage = () => {
   const params = useParams()
   const projectId = params?.project_id as string
   const { getToken } = useAuth()
+  const toast = useToast()
 
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [endpoints, setEndpoints] = useState<(MockEndpoint & { _mockId: string; _responseId: string | null; is_active: number })[]>([])
@@ -106,7 +109,8 @@ const ProjectPage = () => {
         setActiveResponseId(defaultResp?.response_id ?? null)
       }
     } catch (err: any) {
-      setError(err.message ?? 'Failed to load project')
+      setError(friendlyApiError(err))
+      toast.error(friendlyApiError(err))
     } finally {
       setLoading(false)
     }
@@ -148,7 +152,7 @@ const ProjectPage = () => {
       setActiveId(local.id)
       setActiveResponseId(newResponse.response_id)
     } catch (err: any) {
-      setSaveError(err.message ?? 'Failed to create endpoint')
+      toast.error(friendlyApiError(err))
     }
   }
 
@@ -167,7 +171,7 @@ const ProjectPage = () => {
       })
       setResponsesMap(prev => { const n = { ...prev }; delete n[id]; return n })
     } catch (err: any) {
-      setSaveError(err.message ?? 'Failed to delete endpoint')
+      toast.error(friendlyApiError(err))
     }
   }
 
@@ -182,7 +186,7 @@ const ProjectPage = () => {
         ep.id === activeId ? { ...ep, is_active: newActive ? 1 : 0 } : ep
       ))
     } catch (err: any) {
-      setSaveError(err.message ?? 'Failed to update endpoint')
+      toast.error(friendlyApiError(err))
     }
   }
 
@@ -276,7 +280,7 @@ const ProjectPage = () => {
       setActiveId(local.id)
       setActiveResponseId(defaultResp?.response_id ?? null)
     } catch (err: any) {
-      setSaveError(err.message ?? 'Failed to duplicate endpoint')
+      toast.error(friendlyApiError(err))
     }
   }
 
@@ -336,7 +340,8 @@ const ProjectPage = () => {
         setActiveResponseId(newResp.response_id)
       }
     } catch (err: any) {
-      setSaveError(err.message ?? 'Failed to save')
+      setSaveError(friendlyApiError(err))
+      toast.error(friendlyApiError(err))
     } finally {
       setSaving(false)
     }

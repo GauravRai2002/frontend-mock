@@ -11,6 +11,8 @@ import {
     MoreHorizontal,
 } from 'lucide-react'
 import { useOrgDetail, useOrgMembers, useOrgActions } from '@/hooks/use-organizations'
+import { useToast } from '@/components/Toast'
+import { friendlyApiError } from '@/lib/api'
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
     'org:admin': { label: 'Admin', color: 'bg-amber-500/15 text-amber-400' },
@@ -120,6 +122,7 @@ const SettingsPage = () => {
     const { org, loading: orgLoading } = useOrgDetail(orgId)
     const { members, totalCount, loading: membersLoading, refetch: refetchMembers } = useOrgMembers(orgId)
     const { create, invite, removeMember, updateRole } = useOrgActions()
+    const toast = useToast()
 
     // ── Create org form ──────────────────────────────────────────────────
     const [createName, setCreateName] = useState('')
@@ -136,7 +139,8 @@ const SettingsPage = () => {
             await create({ name: createName.trim(), slug: createSlug.trim() || undefined })
             window.location.reload()
         } catch (err: any) {
-            setCreateError(err.message ?? 'Failed to create organization')
+            setCreateError(friendlyApiError(err))
+            toast.error(friendlyApiError(err))
         } finally {
             setCreating(false)
         }
@@ -158,9 +162,11 @@ const SettingsPage = () => {
             setInviteSuccess(null)
             await invite(orgId, { emailAddress: inviteEmail.trim(), role: inviteRole })
             setInviteSuccess(`Invitation sent to ${inviteEmail}`)
+            toast.success(`Invitation sent to ${inviteEmail}`)
             setInviteEmail('')
         } catch (err: any) {
-            setInviteError(err.message ?? 'Failed to send invitation')
+            setInviteError(friendlyApiError(err))
+            toast.error(friendlyApiError(err))
         } finally {
             setInviting(false)
         }
@@ -175,8 +181,9 @@ const SettingsPage = () => {
             setActionLoading(membershipId)
             await removeMember(orgId, membershipId)
             refetchMembers()
+            toast.success('Member removed')
         } catch (err: any) {
-            alert(err.message ?? 'Failed to remove member')
+            toast.error(friendlyApiError(err))
         } finally {
             setActionLoading(null)
         }
@@ -188,8 +195,9 @@ const SettingsPage = () => {
             setActionLoading(membershipId)
             await updateRole(orgId, membershipId, newRole)
             refetchMembers()
+            toast.success('Role updated')
         } catch (err: any) {
-            alert(err.message ?? 'Failed to update role')
+            toast.error(friendlyApiError(err))
         } finally {
             setActionLoading(null)
         }

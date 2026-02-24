@@ -1,5 +1,6 @@
 import { type Metadata } from 'next'
 import ClerkProviderClient from './ClerkProviderClient'
+import { ToastProvider } from '@/components/Toast'
 import './globals.css'
 
 
@@ -17,7 +18,9 @@ export default function RootLayout({
     <ClerkProviderClient>
       <html lang="en">
         <body className={`antialiased dark`}>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </body>
       </html>
     </ClerkProviderClient>

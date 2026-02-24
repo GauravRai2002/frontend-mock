@@ -169,7 +169,35 @@ export interface RequestLogsResponse {
     }
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────
+// ─── Custom Error ─────────────────────────────────────────────────────────
+
+export class ApiError extends Error {
+    status: number
+    retryAfterMs?: number
+
+    constructor(message: string, status: number, retryAfterMs?: number) {
+        super(message)
+        this.name = 'ApiError'
+        this.status = status
+        this.retryAfterMs = retryAfterMs
+    }
+}
+
+/** Human-friendly error message for display in toasts */
+export function friendlyApiError(err: unknown): string {
+    if (err instanceof ApiError) {
+        if (err.status === 429) {
+            const mins = err.retryAfterMs ? Math.ceil(err.retryAfterMs / 60000) : 15
+            return `Rate limit exceeded. Please try again in ${mins} minute${mins > 1 ? 's' : ''}.`
+        }
+        if (err.status === 403) return 'You don\'t have permission to perform this action.'
+        if (err.status === 404) return 'The requested resource was not found.'
+        if (err.status === 401) return 'Your session has expired. Please sign in again.'
+        return err.message || `Something went wrong (${err.status}).`
+    }
+    if (err instanceof Error) return err.message
+    return 'An unexpected error occurred.'
+}
 
 async function apiFetch<T>(
     path: string,
@@ -187,7 +215,19 @@ async function apiFetch<T>(
 
     if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
-        throw new Error(body?.error ?? `API error ${res.status}`)
+
+        // Rate limit — extract retryAfterMs from body or header
+        if (res.status === 429) {
+            const retryAfterMs = body?.retryAfterMs
+                ?? (res.headers.get('Retry-After') ? Number(res.headers.get('Retry-After')) * 1000 : undefined)
+            throw new ApiError(
+                body?.message ?? 'Rate limit exceeded',
+                429,
+                retryAfterMs
+            )
+        }
+
+        throw new ApiError(body?.error ?? `API error ${res.status}`, res.status)
     }
 
     if (res.status === 204) return undefined as T

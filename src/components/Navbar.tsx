@@ -10,7 +10,7 @@ import {
     Bird,
     Home,
 } from 'lucide-react'
-import { useClerk, useUser } from '@clerk/nextjs'
+import { useClerk, useUser, OrganizationSwitcher } from '@clerk/nextjs'
 
 interface NavItem {
     label: string
@@ -79,6 +79,38 @@ const Navbar = () => {
                     </button>
                 ))}
             </nav>
+
+            {/* Org Switcher uncomment and fix later based on the requirements */}
+            {/* <div className={`px-2 py-2 border-b border-sidebar-border ${isCollapsed ? 'flex justify-center' : ''}`}>
+                {!isCollapsed ? (
+                    <OrganizationSwitcher
+                        hidePersonal={false}
+                        afterCreateOrganizationUrl="/dashboard"
+                        afterSelectOrganizationUrl="/dashboard"
+                        appearance={{
+                            elements: {
+                                rootBox: 'w-full',
+                                organizationSwitcherTrigger:
+                                    'w-full rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2.5 py-1.5 text-xs text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
+                            },
+                        }}
+                    />
+                ) : (
+                    <OrganizationSwitcher
+                        hidePersonal={false}
+                        afterCreateOrganizationUrl="/dashboard"
+                        afterSelectOrganizationUrl="/dashboard"
+                        appearance={{
+                            elements: {
+                                rootBox: 'w-full flex justify-center',
+                                organizationSwitcherTrigger:
+                                    'rounded-md border border-sidebar-border bg-sidebar-accent/40 p-1.5 text-xs text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
+                                organizationSwitcherTriggerIcon: 'mx-0',
+                            },
+                        }}
+                    />
+                )}
+            </div> */}
 
             {/* Bottom: User + Collapse */}
             <div className="p-2 border-t border-sidebar-border flex flex-col gap-1">

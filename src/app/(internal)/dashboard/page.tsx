@@ -3,13 +3,15 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { Plus, Search, Zap, Loader2, AlertCircle, RefreshCw, MoreVertical, Pencil, Trash2, Copy } from 'lucide-react'
-import { getProjects, duplicateProject, deleteProject, type Project } from '@/lib/api'
+import { getProjects, duplicateProject, deleteProject, friendlyApiError, type Project } from '@/lib/api'
+import { useToast } from '@/components/Toast'
 import CreateProjectModal from './_components/CreateProjectModal'
 import EditProjectModal from './_components/EditProjectModal'
 
 const DashboardPage = () => {
   const router = useRouter()
   const { getToken } = useAuth()
+  const toast = useToast()
 
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +36,9 @@ const DashboardPage = () => {
       const data = await getProjects(token, q || undefined)
       setProjects(data)
     } catch (err: any) {
-      setError(err.message ?? 'Failed to load projects')
+      const msg = friendlyApiError(err)
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -60,7 +64,9 @@ const DashboardPage = () => {
       setIsCreateOpen(false)
       router.push(`/${project.project_id}`)
     } catch (err: any) {
-      setCreateError(err.message ?? 'Failed to create project')
+      const msg = friendlyApiError(err)
+      setCreateError(msg)
+      toast.error(msg)
     }
   }
 
@@ -74,7 +80,7 @@ const DashboardPage = () => {
       setProjects(prev => prev.filter(p => p.project_id !== id))
       setDeleteConfirm(null)
     } catch (err: any) {
-      console.error(err)
+      toast.error(friendlyApiError(err))
     } finally {
       setDeleting(null)
     }
@@ -90,7 +96,7 @@ const DashboardPage = () => {
       const cloned = await duplicateProject(token, id)
       setProjects(prev => [cloned, ...prev])
     } catch (err: any) {
-      console.error(err)
+      toast.error(friendlyApiError(err))
     } finally {
       setDuplicating(null)
     }

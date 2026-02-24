@@ -53,10 +53,10 @@ const TopNav = ({ projectName, projectSlug, saving, saveError, onSave }: TopNavP
                     <Copy size={11} className="ml-1" />
                 </button>
 
-                <button className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground border border-transparent hover:border-border rounded-md transition-all cursor-pointer">
+                {/* <button className="flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground border border-transparent hover:border-border rounded-md transition-all cursor-pointer">
                     <Share2 size={12} />
                     <span className="hidden sm:inline">Share</span>
-                </button>
+                </button> */}
 
                 <button
                     onClick={onSave}
