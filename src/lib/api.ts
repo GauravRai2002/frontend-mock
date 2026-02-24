@@ -187,8 +187,15 @@ export class ApiError extends Error {
 export function friendlyApiError(err: unknown): string {
     if (err instanceof ApiError) {
         if (err.status === 429) {
-            const mins = err.retryAfterMs ? Math.ceil(err.retryAfterMs / 60000) : 15
-            return `Rate limit exceeded. Please try again in ${mins} minute${mins > 1 ? 's' : ''}.`
+            if (err.retryAfterMs) {
+                const secs = Math.ceil(err.retryAfterMs / 1000)
+                if (secs < 60) {
+                    return `Rate limit exceeded. Please try again in ${secs} second${secs > 1 ? 's' : ''}.`
+                }
+                const mins = Math.ceil(secs / 60)
+                return `Rate limit exceeded. Please try again in ${mins} minute${mins > 1 ? 's' : ''}.`
+            }
+            return 'Rate limit exceeded. Please try again later.'
         }
         if (err.status === 403) return 'You don\'t have permission to perform this action.'
         if (err.status === 404) return 'The requested resource was not found.'
