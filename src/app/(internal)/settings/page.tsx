@@ -1,16 +1,14 @@
 'use client'
-import React, { useState } from 'react'
-import { useAuth, useOrganization } from '@clerk/nextjs'
+import React, { useState, useRef, useEffect } from 'react'
+import { useOrganization } from '@clerk/nextjs'
 import {
     Shield,
     UserPlus,
-    Crown,
     Users,
     Loader2,
     AlertCircle,
     Building2,
     MoreHorizontal,
-    ChevronDown,
 } from 'lucide-react'
 import { useOrgDetail, useOrgMembers, useOrgActions } from '@/hooks/use-organizations'
 
@@ -28,9 +26,96 @@ function roleBadge(role: string) {
     )
 }
 
+// Dropdown rendered at fixed position to escape overflow:hidden parents
+function MemberActionMenu({
+    membershipId,
+    role,
+    onRoleChange,
+    onRemove,
+    loading,
+}: {
+    membershipId: string
+    role: string
+    onRoleChange: (id: string, role: string) => void
+    onRemove: (id: string) => void
+    loading: boolean
+}) {
+    const [open, setOpen] = useState(false)
+    const [menuPos, setMenuPos] = useState({ top: 0, right: 0 })
+    const btnRef = useRef<HTMLButtonElement>(null)
+
+    // Close on outside click
+    useEffect(() => {
+        if (!open) return
+        const handler = (e: MouseEvent) => {
+            if (btnRef.current && !btnRef.current.contains(e.target as Node)) {
+                setOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [open])
+
+    const handleOpen = () => {
+        if (btnRef.current) {
+            const rect = btnRef.current.getBoundingClientRect()
+            setMenuPos({
+                top: rect.bottom + window.scrollY + 4,
+                right: window.innerWidth - rect.right,
+            })
+        }
+        setOpen(v => !v)
+    }
+
+    return (
+        <>
+            <button
+                ref={btnRef}
+                onClick={handleOpen}
+                className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+                {loading
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <MoreHorizontal size={14} />}
+            </button>
+
+            {open && (
+                <div
+                    style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999 }}
+                    className="w-44 bg-popover border border-border rounded-lg shadow-xl py-1 animate-in fade-in zoom-in-95 duration-100"
+                >
+                    {role === 'org:member' && (
+                        <button
+                            onClick={() => { onRoleChange(membershipId, 'org:admin'); setOpen(false) }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-foreground"
+                        >
+                            Promote to Admin
+                        </button>
+                    )}
+                    {role === 'org:admin' && (
+                        <button
+                            onClick={() => { onRoleChange(membershipId, 'org:member'); setOpen(false) }}
+                            className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-foreground"
+                        >
+                            Demote to Member
+                        </button>
+                    )}
+                    <button
+                        onClick={() => { onRemove(membershipId); setOpen(false) }}
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-destructive/10 text-destructive transition-colors cursor-pointer"
+                    >
+                        Remove from org
+                    </button>
+                </div>
+            )}
+        </>
+    )
+}
+
 const SettingsPage = () => {
-    const { organization } = useOrganization()
+    const { organization, membership } = useOrganization()
     const orgId = organization?.id ?? null
+    const isAdmin = membership?.role === 'org:admin'
 
     const { org, loading: orgLoading } = useOrgDetail(orgId)
     const { members, totalCount, loading: membersLoading, refetch: refetchMembers } = useOrgMembers(orgId)
@@ -49,7 +134,7 @@ const SettingsPage = () => {
             setCreating(true)
             setCreateError(null)
             await create({ name: createName.trim(), slug: createSlug.trim() || undefined })
-            window.location.reload()  // Clerk needs to refresh org context
+            window.location.reload()
         } catch (err: any) {
             setCreateError(err.message ?? 'Failed to create organization')
         } finally {
@@ -82,7 +167,6 @@ const SettingsPage = () => {
     }
 
     // ── Member actions ───────────────────────────────────────────────────
-    const [actionMenuId, setActionMenuId] = useState<string | null>(null)
     const [actionLoading, setActionLoading] = useState<string | null>(null)
 
     const handleRemove = async (membershipId: string) => {
@@ -95,7 +179,6 @@ const SettingsPage = () => {
             alert(err.message ?? 'Failed to remove member')
         } finally {
             setActionLoading(null)
-            setActionMenuId(null)
         }
     }
 
@@ -109,7 +192,6 @@ const SettingsPage = () => {
             alert(err.message ?? 'Failed to update role')
         } finally {
             setActionLoading(null)
-            setActionMenuId(null)
         }
     }
 
@@ -189,63 +271,69 @@ const SettingsPage = () => {
                     <h1 className="text-2xl font-bold text-foreground">{org?.name ?? 'Organization'}</h1>
                     <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                         <span className="font-mono bg-muted px-2 py-0.5 rounded text-xs">{org?.slug}</span>
-                        <span className="flex items-center gap-1"><Users size={13} /> {org?.membersCount ?? totalCount} member{(org?.membersCount ?? totalCount) !== 1 ? 's' : ''}</span>
+                        <span className="flex items-center gap-1">
+                            <Users size={13} />
+                            {org?.membersCount ?? totalCount} member{(org?.membersCount ?? totalCount) !== 1 ? 's' : ''}
+                        </span>
                     </div>
                 </section>
 
-                {/* ─── Invite ────────────────────────────────────── */}
-                <section className="bg-card border border-border rounded-xl p-5">
-                    <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4">
-                        <UserPlus size={16} className="text-primary" />
-                        Invite a Member
-                    </h2>
-                    <form onSubmit={handleInvite} className="flex items-end gap-3 flex-wrap">
-                        <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
-                            <label className="text-xs font-medium text-muted-foreground">Email address</label>
-                            <input
-                                type="email"
-                                value={inviteEmail}
-                                onChange={(e) => setInviteEmail(e.target.value)}
-                                placeholder="member@example.com"
-                                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                                required
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1 w-32">
-                            <label className="text-xs font-medium text-muted-foreground">Role</label>
-                            <select
-                                value={inviteRole}
-                                onChange={(e) => setInviteRole(e.target.value)}
-                                className="px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+                {/* ─── Invite (admin only) ─────────────────────────── */}
+                {isAdmin && (
+                    <section className="bg-card border border-border rounded-xl p-5">
+                        <h2 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4">
+                            <UserPlus size={16} className="text-primary" />
+                            Invite a Member
+                        </h2>
+                        <form onSubmit={handleInvite} className="flex items-end gap-3 flex-wrap">
+                            <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+                                <label className="text-xs font-medium text-muted-foreground">Email address</label>
+                                <input
+                                    type="email"
+                                    value={inviteEmail}
+                                    onChange={(e) => setInviteEmail(e.target.value)}
+                                    placeholder="member@example.com"
+                                    className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                    required
+                                />
+                            </div>
+                            <div className="flex flex-col gap-1 w-32">
+                                <label className="text-xs font-medium text-muted-foreground">Role</label>
+                                <select
+                                    value={inviteRole}
+                                    onChange={(e) => setInviteRole(e.target.value)}
+                                    className="px-3 py-2 bg-muted border border-border rounded-lg text-sm text-foreground cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                    <option value="org:member">Member</option>
+                                    <option value="org:admin">Admin</option>
+                                </select>
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={inviting || !inviteEmail.trim()}
+                                className="px-5 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center gap-2"
                             >
-                                <option value="org:member">Member</option>
-                                <option value="org:admin">Admin</option>
-                            </select>
-                        </div>
-                        <button
-                            type="submit"
-                            disabled={inviting || !inviteEmail.trim()}
-                            className="px-5 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                            {inviting && <Loader2 size={14} className="animate-spin" />}
-                            Invite
-                        </button>
-                    </form>
-                    {inviteError && (
-                        <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg mt-3">
-                            <AlertCircle size={14} /> {inviteError}
-                        </div>
-                    )}
-                    {inviteSuccess && (
-                        <div className="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 px-3 py-2 rounded-lg mt-3">
-                            ✓ {inviteSuccess}
-                        </div>
-                    )}
-                </section>
+                                {inviting && <Loader2 size={14} className="animate-spin" />}
+                                Invite
+                            </button>
+                        </form>
+                        {inviteError && (
+                            <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 px-3 py-2 rounded-lg mt-3">
+                                <AlertCircle size={14} /> {inviteError}
+                            </div>
+                        )}
+                        {inviteSuccess && (
+                            <div className="flex items-center gap-2 text-xs text-green-400 bg-green-500/10 px-3 py-2 rounded-lg mt-3">
+                                ✓ {inviteSuccess}
+                            </div>
+                        )}
+                    </section>
+                )}
 
                 {/* ─── Members Table ──────────────────────────────── */}
-                <section className="bg-card border border-border rounded-xl overflow-hidden">
-                    <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+                {/* Note: no overflow-hidden here so fixed-position dropdowns aren't clipped */}
+                <section className="bg-card border border-border rounded-xl">
+                    <div className="px-5 py-4 border-b border-border flex items-center justify-between rounded-t-xl">
                         <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
                             <Shield size={16} className="text-primary" />
                             Members
@@ -255,7 +343,7 @@ const SettingsPage = () => {
 
                     <div className="divide-y divide-border">
                         {members.map((m) => (
-                            <div key={m.membershipId} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors">
+                            <div key={m.membershipId} className="flex items-center gap-3 px-5 py-3 hover:bg-muted/30 transition-colors last:rounded-b-xl">
                                 {/* Avatar */}
                                 {m.user.imageUrl ? (
                                     <img src={m.user.imageUrl} alt="" className="w-8 h-8 rounded-full flex-shrink-0 object-cover" />
@@ -278,44 +366,16 @@ const SettingsPage = () => {
                                 {/* Role badge */}
                                 {roleBadge(m.role)}
 
-                                {/* Actions dropdown */}
-                                <div className="relative">
-                                    <button
-                                        onClick={() => setActionMenuId(actionMenuId === m.membershipId ? null : m.membershipId)}
-                                        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                                    >
-                                        {actionLoading === m.membershipId
-                                            ? <Loader2 size={14} className="animate-spin" />
-                                            : <MoreHorizontal size={14} />}
-                                    </button>
-
-                                    {actionMenuId === m.membershipId && (
-                                        <div className="absolute right-0 top-8 z-20 w-44 bg-popover border border-border rounded-lg shadow-xl py-1 animate-in fade-in zoom-in-95 duration-100">
-                                            {m.role === 'org:member' && (
-                                                <button
-                                                    onClick={() => handleRoleChange(m.membershipId, 'org:admin')}
-                                                    className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-foreground"
-                                                >
-                                                    Promote to Admin
-                                                </button>
-                                            )}
-                                            {m.role === 'org:admin' && (
-                                                <button
-                                                    onClick={() => handleRoleChange(m.membershipId, 'org:member')}
-                                                    className="w-full text-left px-3 py-2 text-xs hover:bg-muted transition-colors cursor-pointer text-foreground"
-                                                >
-                                                    Demote to Member
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={() => handleRemove(m.membershipId)}
-                                                className="w-full text-left px-3 py-2 text-xs hover:bg-destructive/10 text-destructive transition-colors cursor-pointer"
-                                            >
-                                                Remove from org
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
+                                {/* Actions — admin only */}
+                                {isAdmin && (
+                                    <MemberActionMenu
+                                        membershipId={m.membershipId}
+                                        role={m.role}
+                                        onRoleChange={handleRoleChange}
+                                        onRemove={handleRemove}
+                                        loading={actionLoading === m.membershipId}
+                                    />
+                                )}
                             </div>
                         ))}
 
