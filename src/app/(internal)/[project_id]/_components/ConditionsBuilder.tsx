@@ -1,6 +1,6 @@
 'use client'
-import React from 'react'
-import { Plus, X } from 'lucide-react'
+import React, { useState, useRef } from 'react'
+import { Plus, X, Info } from 'lucide-react'
 import { type Condition } from '@/lib/api'
 
 const CONDITION_TYPES: { label: string; value: Condition['type'] }[] = [
@@ -22,6 +22,33 @@ interface ConditionsBuilderProps {
 }
 
 const ConditionsBuilder = ({ conditions, onChange }: ConditionsBuilderProps) => {
+    const [tooltipOpen, setTooltipOpen] = useState(false)
+    const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+    const infoRef = useRef<HTMLDivElement>(null)
+
+    const handleMouseEnter = () => {
+        if (infoRef.current) {
+            const rect = infoRef.current.getBoundingClientRect()
+            const TOOLTIP_WIDTH = 240 // w-60
+            const TOOLTIP_HEIGHT = 85 // approx height
+
+            let left = rect.left
+            // Prevent horizontal overflow
+            if (left + TOOLTIP_WIDTH > window.innerWidth - 10) {
+                left = window.innerWidth - TOOLTIP_WIDTH - 10
+            }
+
+            let top = rect.bottom + 6
+            // Prevent vertical overflow (show above icon if not enough space below)
+            if (top + TOOLTIP_HEIGHT > window.innerHeight - 10) {
+                top = rect.top - TOOLTIP_HEIGHT - 6
+            }
+
+            setTooltipPos({ top, left })
+        }
+        setTooltipOpen(true)
+    }
+
     const addCondition = () => {
         onChange([...conditions, { type: 'header', field: '', operator: 'equals', value: '' }])
     }
@@ -37,9 +64,29 @@ const ConditionsBuilder = ({ conditions, onChange }: ConditionsBuilderProps) => 
     return (
         <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    Conditions
-                </span>
+                <div
+                    ref={infoRef}
+                    className="flex items-center gap-1.5"
+                    onMouseEnter={handleMouseEnter}
+                    onMouseLeave={() => setTooltipOpen(false)}
+                >
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Conditions
+                    </span>
+                    <Info size={13} className="text-muted-foreground/60 hover:text-foreground transition-colors cursor-help" />
+                </div>
+
+                {/* Fixed Tooltip */}
+                {tooltipOpen && (
+                    <div
+                        style={{ position: 'fixed', top: tooltipPos.top, left: tooltipPos.left, zIndex: 9999 }}
+                        className="w-60 p-2.5 bg-popover border border-border rounded-lg shadow-lg text-[11px] text-muted-foreground animate-in fade-in zoom-in-95 duration-100"
+                    >
+                        <strong className="text-foreground font-medium block mb-0.5">Multiple conditions = AND</strong>
+                        If you add multiple conditions, the incoming request must match <span className="text-foreground font-medium">all</span> of them for this response to be selected.
+                    </div>
+                )}
+
                 <button
                     onClick={addCondition}
                     className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors cursor-pointer"

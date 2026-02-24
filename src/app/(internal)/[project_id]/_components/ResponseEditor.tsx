@@ -1,5 +1,5 @@
 'use client'
-import React, { useRef } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { RotateCcw, Check } from 'lucide-react'
 import ConditionsBuilder from './ConditionsBuilder'
 import { type Condition } from '@/lib/api'
@@ -59,6 +59,31 @@ const ResponseEditor = ({
     onConditionsChange,
 }: ResponseEditorProps) => {
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+    // Resizer logic
+    const [conditionsHeight, setConditionsHeight] = useState(130)
+    const [isDragging, setIsDragging] = useState(false)
+
+    useEffect(() => {
+        if (!isDragging) return
+
+        const handleDrag = (e: MouseEvent) => {
+            setConditionsHeight(prev => {
+                // e.movementY is negative if moving mouse UP, which increases the bottom panel height
+                const newHeight = prev - e.movementY
+                return Math.max(80, Math.min(newHeight, window.innerHeight * 0.6)) // min 80px, max 60% of screen
+            })
+        }
+        const handleDragEnd = () => setIsDragging(false)
+
+        document.addEventListener('mousemove', handleDrag)
+        document.addEventListener('mouseup', handleDragEnd)
+
+        return () => {
+            document.removeEventListener('mousemove', handleDrag)
+            document.removeEventListener('mouseup', handleDragEnd)
+        }
+    }, [isDragging])
 
     const formatJson = () => {
         try {
@@ -168,8 +193,19 @@ const ResponseEditor = ({
             </div>
 
             {/* Conditions section */}
-            <div className="border-t border-border px-4 py-3 flex-shrink-0">
-                <ConditionsBuilder conditions={conditions} onChange={onConditionsChange} />
+            <div
+                className="flex-shrink-0 flex flex-col relative border-t border-border bg-background"
+                style={{ height: conditionsHeight }}
+            >
+                {/* Drag handle */}
+                <div
+                    className="absolute top-0 left-0 right-0 h-1.5 -mt-[1px] cursor-row-resize hover:bg-primary/50 transition-colors z-10"
+                    onMouseDown={(e) => { e.preventDefault(); setIsDragging(true) }}
+                />
+
+                <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
+                    <ConditionsBuilder conditions={conditions} onChange={onConditionsChange} />
+                </div>
             </div>
         </div>
     )
