@@ -5,16 +5,20 @@ import { test, expect } from '@playwright/test'
  * Verifies the public landing page renders correctly.
  */
 test.describe('Landing Page', () => {
-    test('should load the landing page', async ({ page }) => {
+    test('should load the landing page with hero heading', async ({ page }) => {
         await page.goto('/')
-        // Check the page title is set
-        await expect(page).toHaveTitle(/MockBird/i)
+        await expect(page.getByRole('heading', { name: /mock apis in/i })).toBeVisible()
     })
 
-    test('should redirect to dashboard or login from root', async ({ page }) => {
+    test('should have a Get Started CTA', async ({ page }) => {
         await page.goto('/')
-        // Root page immediately redirects — either to dashboard (if auth'd) or login page
-        await expect(page).toHaveURL(/dashboard|login|auth/, { timeout: 10_000 })
+        const cta = page.getByRole('button', { name: /start building free|get started/i }).first()
+        await expect(cta).toBeVisible()
+    })
+
+    test('should have a how-it-works section', async ({ page }) => {
+        await page.goto('/')
+        await expect(page.getByText(/three steps/i)).toBeVisible()
     })
 })
 
