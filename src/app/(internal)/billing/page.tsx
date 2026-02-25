@@ -1,6 +1,6 @@
 'use client'
 import React, { useState, useCallback } from 'react'
-import { useClerk, useOrganization } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 import {
     Loader2,
     AlertCircle,
@@ -14,6 +14,7 @@ import {
     X,
 } from 'lucide-react'
 import { useBillingUsage, useBillingPlans, usePlanCheck } from '@/hooks/use-billing'
+import { createCheckoutSession, cancelSubscription } from '@/lib/api'
 import type { BillingPlan } from '@/lib/api'
 
 // ─── Usage bar ────────────────────────────────────────────────────────────
@@ -83,10 +84,11 @@ const LIMIT_KEYS = [
     'requestLogsRetentionDays',
 ] as const
 
-function PlanCard({ plan, isCurrent, onSubscribe }: {
+function PlanCard({ plan, isCurrent, onSubscribe, subscribing }: {
     plan: BillingPlan
     isCurrent: boolean
-    onSubscribe?: (period: 'month' | 'annual') => void
+    onSubscribe?: () => void
+    subscribing?: boolean
 }) {
     const display = PLAN_DISPLAY[plan.planKey] ?? {
         name: plan.planKey,
@@ -126,20 +128,17 @@ function PlanCard({ plan, isCurrent, onSubscribe }: {
             </ul>
 
             {!isCurrent && plan.planKey !== 'free_org' && onSubscribe && (
-                <div className="flex gap-2">
-                    <button
-                        onClick={() => onSubscribe('month')}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors cursor-pointer"
-                    >
-                        Monthly <ArrowUpRight size={12} />
-                    </button>
-                    <button
-                        onClick={() => onSubscribe('annual')}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-primary text-primary text-sm font-medium rounded-lg hover:bg-primary/10 transition-colors cursor-pointer"
-                    >
-                        Annual <ArrowUpRight size={12} />
-                    </button>
-                </div>
+                <button
+                    onClick={onSubscribe}
+                    disabled={subscribing}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {subscribing ? (
+                        <><Loader2 size={14} className="animate-spin" /> Redirecting…</>
+                    ) : (
+                        <>Upgrade to Pro <ArrowUpRight size={12} /></>
+                    )}
+                </button>
             )}
 
             {isCurrent && (
@@ -154,32 +153,39 @@ function PlanCard({ plan, isCurrent, onSubscribe }: {
 // ─── Main page ────────────────────────────────────────────────────────────
 
 const BillingPage = () => {
-    const clerk = useClerk()
-    const { organization } = useOrganization()
+    const { getToken } = useAuth()
+    const { user } = useUser()
     const { usage, loading: usageLoading, error: usageError, refetch: refetchUsage } = useBillingUsage()
     const { plans, loading: plansLoading, error: plansError, refetch: refetchPlans } = useBillingPlans()
     const { isPro, planKey } = usePlanCheck()
+    const [subscribing, setSubscribing] = useState(false)
+    const [subscribeError, setSubscribeError] = useState<string | null>(null)
 
     const loading = usageLoading || plansLoading
     const error = usageError || plansError
 
-    const handleSubscribe = (period: 'month' | 'annual' = 'month') => {
-        if (!organization) return
+    const handleSubscribe = async () => {
+        try {
+            setSubscribing(true)
+            setSubscribeError(null)
+            const token = await getToken()
+            if (!token) throw new Error('Not authenticated')
 
-        const planId = process.env.NEXT_PUBLIC_CLERK_PRO_PLAN_ID
-        const clerkAny = clerk as any
+            const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress
+            if (!email) throw new Error('No email found')
 
-        clerkAny.__internal_openCheckout({
-            planId: planId || undefined,
-            planPeriod: period,
-            subscriberType: 'org',
-            for: 'organization',
-            newSubscriptionRedirectUrl: '/billing',
-            onSubscriptionComplete: () => {
-                refetchUsage()
-                refetchPlans()
-            },
-        })
+            const { checkout_url } = await createCheckoutSession(token, {
+                email,
+                name: user?.fullName || undefined,
+                returnUrl: window.location.origin + '/billing',
+            })
+
+            // Redirect to Dodo Payments hosted checkout
+            window.location.href = checkout_url
+        } catch (err: any) {
+            setSubscribeError(err?.message || 'Failed to create checkout session')
+            setSubscribing(false)
+        }
     }
 
     if (loading) {
@@ -256,6 +262,13 @@ const BillingPage = () => {
                     </section>
                 )}
 
+                {/* Checkout error */}
+                {subscribeError && (
+                    <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm text-destructive">
+                        <AlertCircle size={16} /> {subscribeError}
+                    </div>
+                )}
+
                 {/* Plans */}
                 {plans.length > 0 && (
                     <section>
@@ -267,6 +280,7 @@ const BillingPage = () => {
                                     plan={plan}
                                     isCurrent={plan.planKey === (usage?.plan ?? planKey)}
                                     onSubscribe={handleSubscribe}
+                                    subscribing={subscribing}
                                 />
                             ))}
                         </div>
@@ -276,8 +290,6 @@ const BillingPage = () => {
                 {/* Manage subscription (for pro users) */}
                 {isPro && (
                     <ManageSubscription
-                        organization={organization}
-                        onSwitchPeriod={handleSubscribe}
                         onCancelled={() => { refetchUsage(); refetchPlans() }}
                     />
                 )}
@@ -287,39 +299,24 @@ const BillingPage = () => {
 }
 
 function ManageSubscription({
-    organization,
-    onSwitchPeriod,
     onCancelled,
 }: {
-    organization: ReturnType<typeof useOrganization>['organization']
-    onSwitchPeriod: (period: 'month' | 'annual') => void
     onCancelled: () => void
 }) {
+    const { getToken } = useAuth()
     const [showConfirm, setShowConfirm] = useState(false)
     const [cancelling, setCancelling] = useState(false)
     const [cancelError, setCancelError] = useState<string | null>(null)
 
     const handleCancelSubscription = useCallback(async () => {
-        if (!organization) return
-
         setCancelling(true)
         setCancelError(null)
 
         try {
-            const orgAny = organization as any
-            const { data: subscriptions } = await orgAny.getSubscriptions()
+            const token = await getToken()
+            if (!token) throw new Error('Not authenticated')
 
-            const activeSub = subscriptions?.find(
-                (s: any) => s.plan?.key === 'pro' && s.status === 'active'
-            )
-
-            if (!activeSub) {
-                setCancelError('No active Pro subscription found.')
-                setCancelling(false)
-                return
-            }
-
-            await activeSub.cancel({ orgId: organization.id })
+            await cancelSubscription(token)
             setShowConfirm(false)
             onCancelled()
         } catch (err: any) {
@@ -327,29 +324,17 @@ function ManageSubscription({
         } finally {
             setCancelling(false)
         }
-    }, [organization, onCancelled])
+    }, [getToken, onCancelled])
 
     return (
         <section className="bg-card border border-border rounded-xl p-5">
             <h2 className="text-base font-semibold text-foreground mb-2">Manage Subscription</h2>
             <p className="text-sm text-muted-foreground mb-4">
                 You&apos;re on the <span className="font-semibold text-primary">Pro</span> plan.
-                Switch billing cycle or adjust your subscription below.
+                Manage your subscription below.
             </p>
 
             <div className="flex flex-wrap gap-2">
-                <button
-                    onClick={() => onSwitchPeriod('month')}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                    <CreditCard size={14} /> Switch to Monthly
-                </button>
-                <button
-                    onClick={() => onSwitchPeriod('annual')}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-border rounded-lg text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
-                >
-                    <CreditCard size={14} /> Switch to Annual
-                </button>
                 <button
                     onClick={() => { setShowConfirm(true); setCancelError(null) }}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-destructive/30 rounded-lg text-destructive hover:bg-destructive/10 transition-colors cursor-pointer"

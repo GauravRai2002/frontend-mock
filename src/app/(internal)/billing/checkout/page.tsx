@@ -1,36 +1,66 @@
 'use client'
-import React, { Suspense, useEffect } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { useClerk } from '@clerk/nextjs'
+import React, { Suspense, useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth, useUser } from '@clerk/nextjs'
 import { Loader2 } from 'lucide-react'
-
-type PlanPeriod = 'month' | 'annual'
+import { createCheckoutSession } from '@/lib/api'
 
 function CheckoutPageInner() {
     const router = useRouter()
-    const searchParams = useSearchParams()
-    const clerk = useClerk()
-
-    const period = (searchParams.get('period') as PlanPeriod) || 'month'
-    const planId = process.env.NEXT_PUBLIC_CLERK_PRO_PLAN_ID || ''
+    const { getToken } = useAuth()
+    const { user } = useUser()
+    const [error, setError] = useState<string | null>(null)
 
     useEffect(() => {
-        if (!clerk.loaded) return
+        let cancelled = false
 
-        const clerkAny = clerk as any
-        if (typeof clerkAny.__internal_openCheckout === 'function') {
-            clerkAny.__internal_openCheckout({
-                planId: planId || undefined,
-                planPeriod: period,
-                subscriberType: 'org',
-                for: 'organization',
-                newSubscriptionRedirectUrl: '/billing',
-                onClose: () => router.push('/billing'),
-            })
-        } else {
-            router.push('/billing')
+        async function startCheckout() {
+            try {
+                const token = await getToken()
+                if (!token || cancelled) return
+
+                const email = user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress
+                if (!email) {
+                    router.push('/billing')
+                    return
+                }
+
+                const { checkout_url } = await createCheckoutSession(token, {
+                    email,
+                    name: user?.fullName || undefined,
+                    returnUrl: window.location.origin + '/billing',
+                })
+
+                if (!cancelled) {
+                    window.location.href = checkout_url
+                }
+            } catch (err: any) {
+                if (!cancelled) {
+                    setError(err?.message || 'Failed to start checkout')
+                }
+            }
         }
-    }, [clerk, period, planId, router])
+
+        if (user) {
+            startCheckout()
+        }
+
+        return () => { cancelled = true }
+    }, [getToken, user, router])
+
+    if (error) {
+        return (
+            <div className="flex-1 h-screen bg-background flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <p className="text-sm text-destructive">{error}</p>
+                <button
+                    onClick={() => router.push('/billing')}
+                    className="text-xs text-primary hover:underline cursor-pointer"
+                >
+                    Back to Billing
+                </button>
+            </div>
+        )
+    }
 
     return (
         <div className="flex-1 h-screen bg-background flex items-center justify-center gap-2 text-muted-foreground">

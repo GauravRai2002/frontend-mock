@@ -61,13 +61,13 @@ export function useBillingPlans() {
 }
 
 /**
- * Checks the current org/user plan using Clerk's session-level `has()`.
- * Returns helpers to gate UI features without extra API calls.
+ * Checks the current org/user plan using the backend /billing/usage endpoint.
+ * Returns helpers to gate UI features.
  */
 export function usePlanCheck() {
-    const { has } = useAuth()
+    const { usage } = useBillingUsage()
 
-    const isPro = has?.({ plan: 'pro' }) ?? false
+    const isPro = usage?.plan === 'pro'
     const planKey = isPro ? 'pro' : 'free_org'
 
     return { isPro, planKey }

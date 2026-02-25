@@ -1,7 +1,7 @@
 /**
  * MockBird API Client
  * Typed wrappers around every backend endpoint.
- * All protected calls require a Clerk session token passed as `token`.
+ * All protected calls require a session token passed as `token`.
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'
@@ -673,4 +673,43 @@ export async function getBillingUsage(token: string): Promise<BillingUsage> {
 export async function getBillingPlans(token: string): Promise<BillingPlan[]> {
     const res = await apiFetch<{ data: BillingPlan[] }>('/billing/plans', token)
     return res.data
+}
+
+export interface CheckoutSessionResponse {
+    checkout_url: string
+    session_id: string
+}
+
+export async function createCheckoutSession(
+    token: string,
+    payload: { email: string; name?: string; returnUrl?: string }
+): Promise<CheckoutSessionResponse> {
+    return apiFetch<CheckoutSessionResponse>('/billing/checkout-session', token, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
+}
+
+export interface SubscriptionInfo {
+    id: string
+    org_id: string | null
+    user_id: string | null
+    dodo_subscription_id: string
+    plan_key: string
+    status: string
+    current_period_start: string | null
+    current_period_end: string | null
+    created_at: string
+    updated_at: string
+}
+
+export async function getSubscription(token: string): Promise<SubscriptionInfo | null> {
+    const res = await apiFetch<{ subscription: SubscriptionInfo | null }>('/billing/subscription', token)
+    return res.subscription
+}
+
+export async function cancelSubscription(token: string): Promise<{ cancelled: boolean }> {
+    return apiFetch<{ cancelled: boolean }>('/billing/cancel-subscription', token, {
+        method: 'POST',
+    })
 }
