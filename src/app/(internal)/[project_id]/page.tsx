@@ -9,6 +9,7 @@ import EndpointEditor from './_components/EndpointEditor'
 import StatsBar from './_components/StatsBar'
 import { type MockEndpoint } from './_components/EndpointList'
 import { useToast } from '@/components/Toast'
+import UpgradeModal from '@/components/UpgradeModal'
 import {
   getProject,
   getMock,
@@ -23,9 +24,11 @@ import {
   parseResponseHeaders,
   parseConditions,
   friendlyApiError,
+  isPlanLimitError,
   type ProjectDetail,
   type MockResponse,
   type Condition,
+  type PlanLimitError,
 } from '@/lib/api'
 
 const DEFAULT_BODY = `{
@@ -85,6 +88,7 @@ const ProjectPage = () => {
   const [responsesMap, setResponsesMap] = useState<Record<string, MockResponse[]>>({})
   const [activeResponseId, setActiveResponseId] = useState<string | null>(null)
   const [conditions, setConditions] = useState<Condition[]>([])
+  const [upgradeError, setUpgradeError] = useState<PlanLimitError | null>(null)
 
   // ── Load project + mocks ──────────────────────────────────────────────
   const loadProject = useCallback(async () => {
@@ -165,6 +169,10 @@ const ProjectPage = () => {
       setActiveId(local.id)
       setActiveResponseId(newResponse.response_id)
     } catch (err: any) {
+      if (isPlanLimitError(err)) {
+        setUpgradeError(err.details)
+        return
+      }
       toast.error(friendlyApiError(err))
     } finally {
       setIsAdding(false)
@@ -227,16 +235,24 @@ const ProjectPage = () => {
   // ── Response: add ────────────────────────────────────────────────────
   const handleResponseAdd = async () => {
     if (!activeId) return
-    const token = await getToken()
-    if (!token) return
-    const newResp = await createMockResponse(token, activeId, {
-      name: `Response ${(responsesMap[activeId]?.length ?? 0) + 1}`,
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: DEFAULT_BODY,
-      isDefault: false,
-    })
-    setResponsesMap(prev => ({ ...prev, [activeId]: [...(prev[activeId] ?? []), newResp] }))
+    try {
+      const token = await getToken()
+      if (!token) return
+      const newResp = await createMockResponse(token, activeId, {
+        name: `Response ${(responsesMap[activeId]?.length ?? 0) + 1}`,
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: DEFAULT_BODY,
+        isDefault: false,
+      })
+      setResponsesMap(prev => ({ ...prev, [activeId]: [...(prev[activeId] ?? []), newResp] }))
+    } catch (err: any) {
+      if (isPlanLimitError(err)) {
+        setUpgradeError(err.details)
+        return
+      }
+      toast.error(friendlyApiError(err))
+    }
   }
 
   // ── Response: delete ─────────────────────────────────────────────────
@@ -289,7 +305,6 @@ const ProjectPage = () => {
       const token = await getToken()
       if (!token) return
       const cloned = await duplicateMock(token, activeId)
-      // Fetch its default response
       const detail = await getMock(token, cloned.mock_id)
       const responses = detail.responses ?? []
       const defaultResp = responses.find(r => r.is_default === 1) ?? responses[0] ?? null
@@ -299,6 +314,10 @@ const ProjectPage = () => {
       setActiveId(local.id)
       setActiveResponseId(defaultResp?.response_id ?? null)
     } catch (err: any) {
+      if (isPlanLimitError(err)) {
+        setUpgradeError(err.details)
+        return
+      }
       toast.error(friendlyApiError(err))
     } finally {
       setIsDuplicating(false)
@@ -366,6 +385,10 @@ const ProjectPage = () => {
         setActiveResponseId(newResp.response_id)
       }
     } catch (err: any) {
+      if (isPlanLimitError(err)) {
+        setUpgradeError(err.details)
+        return
+      }
       setSaveError(friendlyApiError(err))
       toast.error(friendlyApiError(err))
     } finally {
@@ -459,6 +482,13 @@ const ProjectPage = () => {
           )}
         </div>
       </div>
+
+      {upgradeError && (
+        <UpgradeModal
+          error={upgradeError}
+          onClose={() => setUpgradeError(null)}
+        />
+      )}
     </div>
   )
 }
