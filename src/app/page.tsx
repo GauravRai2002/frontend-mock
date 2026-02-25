@@ -6,6 +6,7 @@ import {
   Zap, Shield, Clock, Code2, Users, BarChart3,
   ArrowRight, CheckCircle2, Sparkles, Globe, Layers
 } from 'lucide-react'
+import Logo from '@/components/Logo'
 
 export default function LandingPage() {
   const { isSignedIn, isLoaded } = useAuth()
@@ -32,9 +33,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl bg-background/80 border-b border-border/50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <Zap size={16} className="text-primary-foreground" />
-            </div>
+            <Logo size={32} />
             <span className="text-lg font-bold tracking-tight">MockBird</span>
           </div>
           <div className="flex items-center gap-3">
@@ -331,10 +330,12 @@ export default function LandingPage() {
       <footer className="border-t border-border py-8 px-6">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-primary flex items-center justify-center">
-              <Zap size={12} className="text-primary-foreground" />
-            </div>
+            <Logo size={24} />
             <span className="text-sm font-semibold">MockBird</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="/privacy" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Privacy Policy</a>
+            <a href="/terms" className="text-xs text-muted-foreground hover:text-foreground transition-colors">Terms of Service</a>
           </div>
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} MockBird. Built for developers, by developers.

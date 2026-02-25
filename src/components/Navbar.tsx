@@ -7,12 +7,14 @@ import {
     ChevronLeft,
     ChevronRight,
     LogOut,
-    Bird,
+    Home,
     Layers,
     CreditCard,
 } from 'lucide-react'
-import { useClerk, useUser } from '@clerk/nextjs'
 import OrgSwitcher from '@/components/OrgSwitcher'
+
+import Logo from '@/components/Logo'
+import { useClerk, useUser, OrganizationSwitcher } from '@clerk/nextjs'
 
 interface NavItem {
     label: string
@@ -51,9 +53,7 @@ const Navbar = () => {
           ${isCollapsed ? 'justify-center' : ''}
         `}
             >
-                <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-                    <Bird size={14} className="text-primary-foreground" strokeWidth={2.5} />
-                </div>
+                <Logo size={28} className="flex-shrink-0" />
                 {!isCollapsed && (
                     <span className="text-sm font-bold text-sidebar-foreground tracking-tight animate-fadeIn">
                         MockBird
