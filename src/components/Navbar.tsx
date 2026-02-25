@@ -8,10 +8,11 @@ import {
     ChevronRight,
     LogOut,
     Bird,
-    Home,
     Layers,
+    CreditCard,
 } from 'lucide-react'
-import { useClerk, useUser, OrganizationSwitcher } from '@clerk/nextjs'
+import { useClerk, useUser } from '@clerk/nextjs'
+import OrgSwitcher from '@/components/OrgSwitcher'
 
 interface NavItem {
     label: string
@@ -22,6 +23,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: <LayoutGrid size={16} /> },
     { label: 'Templates', href: '/templates', icon: <Layers size={16} /> },
+    { label: 'Billing', href: '/billing', icon: <CreditCard size={16} /> },
     { label: 'Settings', href: '/settings', icon: <Settings size={16} /> },
 ]
 
@@ -82,36 +84,9 @@ const Navbar = () => {
                 ))}
             </nav>
 
-            {/* Org Switcher: uncomment and fix later based on the requirements */}
-            {/* <div className={`px-2 py-2 border-b border-sidebar-border ${isCollapsed ? 'flex justify-center' : ''}`}>
-                {!isCollapsed ? (
-                    <OrganizationSwitcher
-                        hidePersonal={false}
-                        afterCreateOrganizationUrl="/dashboard"
-                        afterSelectOrganizationUrl="/dashboard"
-                        appearance={{
-                            elements: {
-                                rootBox: 'w-full',
-                                organizationSwitcherTrigger:
-                                    'w-full rounded-md border border-sidebar-border bg-sidebar-accent/40 px-2.5 py-1.5 text-xs text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
-                            },
-                        }}
-                    />
-                ) : (
-                    <OrganizationSwitcher
-                        hidePersonal={false}
-                        afterCreateOrganizationUrl="/dashboard"
-                        afterSelectOrganizationUrl="/dashboard"
-                        appearance={{
-                            elements: {
-                                rootBox: 'w-full flex justify-center',
-                                organizationSwitcherTrigger:
-                                    'rounded-md border border-sidebar-border bg-sidebar-accent/40 p-1.5 text-xs text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
-                                organizationSwitcherTriggerIcon: 'mx-0',
-                            },
-                        }}
-                    />
-                )}
+            {/* Org Switcher */}
+            {/* <div className={`px-2 py-2 border-b border-sidebar-border`}>
+                <OrgSwitcher collapsed={isCollapsed} />
             </div> */}
 
             {/* Bottom: User + Collapse */}

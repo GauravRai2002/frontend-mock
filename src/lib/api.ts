@@ -191,23 +191,88 @@ export interface TemplateDetail extends Template {
     mocks: TemplateMock[]
 }
 
+// ─── Billing ──────────────────────────────────────────────────────────────
+
+export interface UsageEntry {
+    used: number
+    limit?: number
+}
+
+export interface BillingUsage {
+    plan: string
+    usage: {
+        projects: UsageEntry
+        totalMocks: UsageEntry
+        monthlyRequests: UsageEntry
+    }
+    limits: {
+        maxProjects: number
+        maxMocksPerProject: number
+        maxResponsesPerMock: number
+        requestLogsRetentionDays: number
+        monthlyRequests: number
+    }
+}
+
+export interface BillingPlan {
+    planKey: string
+    maxProjects: number
+    maxMocksPerProject: number
+    maxResponsesPerMock: number
+    requestLogsRetentionDays: number
+    monthlyRequests: number
+}
+
+export interface PlanLimitError {
+    error: 'PLAN_LIMIT_REACHED'
+    message: string
+    limit: number
+    current: number
+    plan: string
+}
+
+export interface QuotaExceededError {
+    error: 'MONTHLY_QUOTA_EXCEEDED'
+    message: string
+    used: number
+    limit: number
+}
+
 // ─── Custom Error ─────────────────────────────────────────────────────────
 
 export class ApiError extends Error {
     status: number
     retryAfterMs?: number
+    code?: string
+    details?: PlanLimitError | QuotaExceededError
 
-    constructor(message: string, status: number, retryAfterMs?: number) {
+    constructor(
+        message: string,
+        status: number,
+        opts?: { retryAfterMs?: number; code?: string; details?: PlanLimitError | QuotaExceededError }
+    ) {
         super(message)
         this.name = 'ApiError'
         this.status = status
-        this.retryAfterMs = retryAfterMs
+        this.retryAfterMs = opts?.retryAfterMs
+        this.code = opts?.code
+        this.details = opts?.details
+    }
+
+    get isPlanLimit(): boolean {
+        return this.code === 'PLAN_LIMIT_REACHED'
+    }
+
+    get isQuotaExceeded(): boolean {
+        return this.code === 'MONTHLY_QUOTA_EXCEEDED'
     }
 }
 
 /** Human-friendly error message for display in toasts */
 export function friendlyApiError(err: unknown): string {
     if (err instanceof ApiError) {
+        if (err.isPlanLimit) return err.message
+        if (err.isQuotaExceeded) return err.message
         if (err.status === 429) {
             if (err.retryAfterMs) {
                 const secs = Math.ceil(err.retryAfterMs / 1000)
@@ -228,6 +293,16 @@ export function friendlyApiError(err: unknown): string {
     return 'An unexpected error occurred.'
 }
 
+/** Check whether an error is a plan limit error that should trigger an upgrade prompt */
+export function isPlanLimitError(err: unknown): err is ApiError & { details: PlanLimitError } {
+    return err instanceof ApiError && err.isPlanLimit
+}
+
+/** Check whether an error is a monthly quota exceeded error */
+export function isQuotaExceededError(err: unknown): err is ApiError & { details: QuotaExceededError } {
+    return err instanceof ApiError && err.isQuotaExceeded
+}
+
 async function apiFetch<T>(
     path: string,
     token: string,
@@ -245,18 +320,33 @@ async function apiFetch<T>(
     if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
 
-        // Rate limit — extract retryAfterMs from body or header
+        if (res.status === 403 && body?.error === 'PLAN_LIMIT_REACHED') {
+            throw new ApiError(
+                body.message ?? 'Plan limit reached. Upgrade to continue.',
+                403,
+                { code: 'PLAN_LIMIT_REACHED', details: body as PlanLimitError }
+            )
+        }
+
+        if (res.status === 429 && body?.error === 'MONTHLY_QUOTA_EXCEEDED') {
+            throw new ApiError(
+                body.message ?? 'Monthly quota exceeded.',
+                429,
+                { code: 'MONTHLY_QUOTA_EXCEEDED', details: body as QuotaExceededError }
+            )
+        }
+
         if (res.status === 429) {
             const retryAfterMs = body?.retryAfterMs
                 ?? (res.headers.get('Retry-After') ? Number(res.headers.get('Retry-After')) * 1000 : undefined)
             throw new ApiError(
                 body?.message ?? 'Rate limit exceeded',
                 429,
-                retryAfterMs
+                { retryAfterMs }
             )
         }
 
-        throw new ApiError(body?.error ?? `API error ${res.status}`, res.status)
+        throw new ApiError(body?.error ?? body?.message ?? `API error ${res.status}`, res.status)
     }
 
     if (res.status === 204) return undefined as T
@@ -572,4 +662,15 @@ export async function applyTemplate(
         method: 'POST',
         body: JSON.stringify(payload),
     })
+}
+
+// ─── Billing ──────────────────────────────────────────────────────────────
+
+export async function getBillingUsage(token: string): Promise<BillingUsage> {
+    return apiFetch<BillingUsage>('/billing/usage', token)
+}
+
+export async function getBillingPlans(token: string): Promise<BillingPlan[]> {
+    const res = await apiFetch<{ data: BillingPlan[] }>('/billing/plans', token)
+    return res.data
 }

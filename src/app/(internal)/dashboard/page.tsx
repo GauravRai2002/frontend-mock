@@ -3,10 +3,11 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { Plus, Search, Zap, Loader2, AlertCircle, RefreshCw, MoreVertical, Pencil, Trash2, Copy } from 'lucide-react'
-import { getProjects, duplicateProject, deleteProject, friendlyApiError, type Project } from '@/lib/api'
+import { getProjects, duplicateProject, deleteProject, friendlyApiError, isPlanLimitError, type Project, type PlanLimitError } from '@/lib/api'
 import { useToast } from '@/components/Toast'
 import CreateProjectModal from './_components/CreateProjectModal'
 import EditProjectModal from './_components/EditProjectModal'
+import UpgradeModal from '@/components/UpgradeModal'
 
 const DashboardPage = () => {
   const router = useRouter()
@@ -24,6 +25,7 @@ const DashboardPage = () => {
   const [createError, setCreateError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [duplicating, setDuplicating] = useState<string | null>(null)
+  const [upgradeError, setUpgradeError] = useState<PlanLimitError | null>(null)
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Fetch (server-side search) ──────────────────────────────────────
@@ -64,6 +66,11 @@ const DashboardPage = () => {
       setIsCreateOpen(false)
       router.push(`/${project.project_id}`)
     } catch (err: any) {
+      if (isPlanLimitError(err)) {
+        setIsCreateOpen(false)
+        setUpgradeError(err.details)
+        return
+      }
       const msg = friendlyApiError(err)
       setCreateError(msg)
       toast.error(msg)
@@ -96,6 +103,10 @@ const DashboardPage = () => {
       const cloned = await duplicateProject(token, id)
       setProjects(prev => [cloned, ...prev])
     } catch (err: any) {
+      if (isPlanLimitError(err)) {
+        setUpgradeError(err.details)
+        return
+      }
       toast.error(friendlyApiError(err))
     } finally {
       setDuplicating(null)
@@ -274,6 +285,13 @@ const DashboardPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {upgradeError && (
+        <UpgradeModal
+          error={upgradeError}
+          onClose={() => setUpgradeError(null)}
+        />
       )}
     </div>
   )
