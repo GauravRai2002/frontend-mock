@@ -25,7 +25,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
     { label: 'Dashboard', href: '/dashboard', icon: <LayoutGrid size={16} /> },
     { label: 'Templates', href: '/templates', icon: <Layers size={16} /> },
-    { label: 'Billing', href: '/billing', icon: <CreditCard size={16} /> },
+    // { label: 'Billing', href: '/billing', icon: <CreditCard size={16} /> }, //TODO:Add this back when verified in DODO
     { label: 'Settings', href: '/settings', icon: <Settings size={16} /> },
 ]
 
