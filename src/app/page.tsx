@@ -188,6 +188,11 @@ export default function LandingPage() {
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
+                icon: <Sparkles size={20} />,
+                title: 'AI-Powered Generation',
+                desc: 'Describe your API in plain English and let AI instantly generate complete mocked endpoints and scenarios.'
+              },
+              {
                 icon: <Layers size={20} />,
                 title: 'Multiple Responses',
                 desc: 'Define multiple responses per endpoint with conditional logic or weighted random selection.'
