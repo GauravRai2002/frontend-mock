@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { Loader2, AlertCircle, CopyPlus, LayoutTemplate, Layers, Plus, FolderOpen } from 'lucide-react'
-import { getTemplates, getTemplate, applyTemplate, getProjects, type Template, type TemplateDetail, type Project } from '@/lib/api'
+import { getTemplates, getTemplate, applyTemplate, getProjects, isPlanLimitError, type Template, type TemplateDetail, type Project, type PlanLimitError } from '@/lib/api'
 import { useToast } from '@/components/Toast'
+import UpgradeModal from '@/components/UpgradeModal'
 
 const TemplatesPage = () => {
     const router = useRouter()
@@ -27,6 +28,8 @@ const TemplatesPage = () => {
     const [projects, setProjects] = useState<Project[]>([])
     const [projectsLoading, setProjectsLoading] = useState(false)
     const [selectedProjectId, setSelectedProjectId] = useState<string>('')
+
+    const [upgradeError, setUpgradeError] = useState<PlanLimitError | null>(null)
 
     const fetchData = async () => {
         try {
@@ -110,12 +113,16 @@ const TemplatesPage = () => {
             }
             setSelectedTemplate(null)
         } catch (err: any) {
-            toast.error(err.message || `Failed to apply template`)
+            if (isPlanLimitError(err)) {
+                setUpgradeError(err.details)
+                setSelectedTemplate(null)
+            } else {
+                toast.error(err.message || `Failed to apply template`)
+            }
         } finally {
             setApplying(false)
         }
     }
-
     return (
         <div className="flex-1 h-screen bg-background flex flex-col overflow-hidden">
             {/* Header */}
@@ -302,6 +309,13 @@ const TemplatesPage = () => {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {upgradeError && (
+                <UpgradeModal
+                    error={upgradeError}
+                    onClose={() => setUpgradeError(null)}
+                />
             )}
         </div>
     )

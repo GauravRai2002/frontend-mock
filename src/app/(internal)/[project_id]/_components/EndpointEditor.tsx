@@ -6,7 +6,8 @@ import HeadersEditor from './HeadersEditor'
 import RequestBodyEditor from './RequestBodyEditor'
 import ResponsesPanel from './ResponsesPanel'
 import RequestLogsTab from './RequestLogsTab'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Copy } from 'lucide-react'
+import { useToast } from '@/components/Toast'
 import { type MockEndpoint } from './EndpointList'
 import { type MockResponse, type Condition } from '@/lib/api'
 
@@ -56,6 +57,7 @@ const EndpointEditor = ({
     conditions = [],
     onConditionsChange,
 }: EndpointEditorProps) => {
+    const toast = useToast()
     const supportsBody = BODY_METHODS.has(endpoint.method.toUpperCase())
     const [activeTab, setActiveTab] = useState<Tab>('response')
     const [togglingActive, setTogglingActive] = useState(false)
@@ -107,6 +109,17 @@ const EndpointEditor = ({
                     placeholder="Endpoint name"
                     className="w-36 px-3 py-1.5 bg-muted border border-border rounded-md text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                 />
+                <button
+                    onClick={() => {
+                        const url = `${process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3001'}/m/${projectSlug}${endpoint.path}`
+                        navigator.clipboard.writeText(url)
+                        toast.success('URL copied to clipboard')
+                    }}
+                    className="flex items-center justify-center w-[30px] h-[30px] rounded-md text-muted-foreground hover:bg-muted hover:border hover:border-border transition-all cursor-pointer flex-shrink-0"
+                    title="Copy Mock URL"
+                >
+                    <Copy size={13} />
+                </button>
             </div>
 
             {/* Tabs */}

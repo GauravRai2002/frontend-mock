@@ -1,8 +1,10 @@
 'use client'
 import React, { useRef, useState, useEffect } from 'react'
-import { RotateCcw, Check } from 'lucide-react'
+import { RotateCcw, Check, Sparkles, Wand2, Loader2, X } from 'lucide-react'
 import ConditionsBuilder from './ConditionsBuilder'
-import { type Condition } from '@/lib/api'
+import { type Condition, generateMockDataJson, friendlyApiError } from '@/lib/api'
+import { useAuth } from '@clerk/nextjs'
+import { useToast } from '@/components/Toast'
 
 const STATUS_CODES = [200, 201, 204, 400, 401, 403, 404, 409, 422, 500, 502, 503]
 const CONTENT_TYPES = [
@@ -58,11 +60,50 @@ const ResponseEditor = ({
     onContentTypeChange,
     onConditionsChange,
 }: ResponseEditorProps) => {
+    const { getToken } = useAuth()
+    const toast = useToast()
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const promptInputRef = useRef<HTMLTextAreaElement>(null)
 
     // Resizer logic
     const [conditionsHeight, setConditionsHeight] = useState(130)
     const [isDragging, setIsDragging] = useState(false)
+
+    // AI Generation
+    const [showAiPrompt, setShowAiPrompt] = useState(false)
+    const [aiPrompt, setAiPrompt] = useState('')
+    const [isGenerating, setIsGenerating] = useState(false)
+
+    useEffect(() => {
+        if (showAiPrompt) {
+            promptInputRef.current?.focus()
+        }
+    }, [showAiPrompt])
+
+    const handleGenerateAi = async () => {
+        if (!aiPrompt.trim()) return
+        try {
+            setIsGenerating(true)
+            const token = await getToken()
+            if (!token) throw new Error('Not authenticated')
+
+            const response = await generateMockDataJson(token, aiPrompt.trim())
+            if (response.data) {
+                const dataString = typeof response.data === 'string'
+                    ? response.data
+                    : JSON.stringify(response.data, null, 2)
+
+                onBodyChange(dataString)
+                setShowAiPrompt(false)
+                setAiPrompt('')
+                toast.success('Successfully generated mock data.')
+            }
+        } catch (err: any) {
+            toast.error(friendlyApiError(err))
+        } finally {
+            setIsGenerating(false)
+        }
+    }
 
     useEffect(() => {
         if (!isDragging) return
@@ -154,16 +195,25 @@ const ResponseEditor = ({
                     </div>
                 </div>
 
-                {/* Format + valid JSON indicator */}
+                {/* Format + valid JSON indicator + AI Gen */}
                 <div className="ml-auto flex items-center gap-2">
                     {contentType === 'application/json' && (
-                        isValidJson ? (
-                            <span className="flex items-center gap-1 text-[10px] text-[#22C55E]">
-                                <Check size={10} strokeWidth={2.5} /> Valid JSON
-                            </span>
-                        ) : (
-                            <span className="text-[10px] text-[#EF4444]">Invalid JSON</span>
-                        )
+                        <>
+                            <button
+                                onClick={() => setShowAiPrompt(!showAiPrompt)}
+                                className="flex items-center gap-1.5 px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 rounded text-xs font-medium hover:bg-purple-200 dark:hover:bg-purple-900/60 transition-colors cursor-pointer mr-2"
+                            >
+                                <Sparkles size={12} />
+                                Generate
+                            </button>
+                            {isValidJson ? (
+                                <span className="flex items-center gap-1 text-[10px] text-[#22C55E]">
+                                    <Check size={10} strokeWidth={2.5} /> Valid JSON
+                                </span>
+                            ) : (
+                                <span className="text-[10px] text-[#EF4444]">Invalid JSON</span>
+                            )}
+                        </>
                     )}
                     <button
                         onClick={formatJson}
@@ -178,6 +228,50 @@ const ResponseEditor = ({
 
             {/* Body editor */}
             <div className="flex-1 overflow-hidden relative">
+                {showAiPrompt && (
+                    <div className="absolute top-2 right-2 z-10 w-80 bg-card border border-border shadow-lg rounded-lg overflow-hidden animate-in fade-in slide-in-from-top-2">
+                        <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/50">
+                            <h3 className="text-xs font-medium flex items-center gap-1.5 text-purple-500">
+                                <Wand2 size={12} /> Prompt AI to generate data
+                            </h3>
+                            <button
+                                onClick={() => setShowAiPrompt(false)}
+                                className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer p-0.5 rounded-md hover:bg-muted"
+                            >
+                                <X size={12} />
+                            </button>
+                        </div>
+                        <div className="p-3 pb-2 flex flex-col gap-2">
+                            <textarea
+                                ref={promptInputRef}
+                                value={aiPrompt}
+                                onChange={e => setAiPrompt(e.target.value)}
+                                placeholder="E.g., An array of 5 users with id, name, and role."
+                                rows={3}
+                                className="w-full px-2 py-1.5 bg-background border border-border rounded text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-purple-500 resize-none"
+                                onKeyDown={e => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault()
+                                        handleGenerateAi()
+                                    }
+                                }}
+                            />
+                            <div className="flex justify-end pt-1">
+                                <button
+                                    onClick={handleGenerateAi}
+                                    disabled={!aiPrompt.trim() || isGenerating}
+                                    className="flex items-center gap-1.5 px-3 py-1 bg-purple-600 text-white text-xs font-medium rounded hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {isGenerating ? (
+                                        <><Loader2 size={10} className="animate-spin" /> Generating...</>
+                                    ) : (
+                                        'Generate'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <textarea
                     ref={textareaRef}
                     value={body}
@@ -186,7 +280,7 @@ const ResponseEditor = ({
                     className="
             code-input w-full h-full bg-background text-foreground text-xs
             p-4 resize-none focus:outline-none
-            font-mono leading-relaxed
+            font-mono leading-relaxed pb-8
           "
                     placeholder={DEFAULT_JSON}
                 />

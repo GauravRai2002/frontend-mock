@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@clerk/nextjs'
 import { Plus, Search, Zap, Loader2, AlertCircle, RefreshCw, MoreVertical, Pencil, Trash2, Copy } from 'lucide-react'
-import { getProjects, duplicateProject, deleteProject, friendlyApiError, isPlanLimitError, type Project, type PlanLimitError } from '@/lib/api'
+import { getProjects, createProject, batchCreateProject, generateProjectStructure, duplicateProject, deleteProject, friendlyApiError, isPlanLimitError, type Project, type PlanLimitError, type AiGeneratedProjectResponse } from '@/lib/api'
 import { useToast } from '@/components/Toast'
 import CreateProjectModal from './_components/CreateProjectModal'
 import EditProjectModal from './_components/EditProjectModal'
@@ -61,10 +61,45 @@ const DashboardPage = () => {
       setCreateError(null)
       const token = await getToken()
       if (!token) throw new Error('Not authenticated')
-      const { createProject } = await import('@/lib/api')
       const project = await createProject(token, { name, description })
       setIsCreateOpen(false)
       router.push(`/${project.project_id}`)
+    } catch (err: any) {
+      if (isPlanLimitError(err)) {
+        setIsCreateOpen(false)
+        setUpgradeError(err.details)
+        return
+      }
+      const msg = friendlyApiError(err)
+      setCreateError(msg)
+      toast.error(msg)
+    }
+  }
+
+  // ── AI Generate ───────────────────────────────────────────────────────
+  const handleGenerate = async (prompt: string) => {
+    try {
+      setCreateError(null)
+      const token = await getToken()
+      if (!token) throw new Error('Not authenticated')
+
+      // 1. Get the AI structure
+      const aiResponse = await generateProjectStructure(token, prompt)
+
+      // 2. Derive project metadata
+      const nameMatch = prompt.match(/^([a-z0-9\s-_]{3,30})/i)
+      const inferredName = nameMatch ? nameMatch[0].trim() : 'AI Generated API'
+
+      // 3. Dispatch to batch create
+      const project = await batchCreateProject(token, {
+        name: inferredName,
+        description: `Generated from prompt: "${prompt}"`,
+        endpoints: aiResponse.data || [],
+      })
+
+      setIsCreateOpen(false)
+      router.push(`/${project.project_id}`)
+      toast.success('Project generated successfully!')
     } catch (err: any) {
       if (isPlanLimitError(err)) {
         setIsCreateOpen(false)
@@ -246,6 +281,7 @@ const DashboardPage = () => {
         <CreateProjectModal
           onClose={() => { setIsCreateOpen(false); setCreateError(null) }}
           onCreate={handleCreate}
+          onGenerate={handleGenerate}
           error={createError}
         />
       )}

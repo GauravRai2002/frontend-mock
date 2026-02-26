@@ -1,7 +1,7 @@
 'use client'
-import React, { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'next/navigation'
-import { useAuth } from '@clerk/nextjs'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import { useAuth, useUser } from '@clerk/nextjs'
 import { Loader2, AlertCircle, LayoutTemplate } from 'lucide-react'
 import TopNav from './_components/TopNav'
 import EndpointList from './_components/EndpointList'
@@ -10,6 +10,8 @@ import StatsBar from './_components/StatsBar'
 import { type MockEndpoint } from './_components/EndpointList'
 import { useToast } from '@/components/Toast'
 import UpgradeModal from '@/components/UpgradeModal'
+import UnsavedChangesModal from './_components/UnsavedChangesModal'
+import { useDebounce } from '@/hooks/use-debounce'
 import {
   getProject,
   getMock,
@@ -68,9 +70,11 @@ function apiMockToLocal(mock: any, defaultResponse?: MockResponse | null): MockE
 }
 
 const ProjectPage = () => {
-  const params = useParams()
-  const projectId = params?.project_id as string
+  const { project_id } = useParams()
+  const router = useRouter()
+  const projectId = (Array.isArray(project_id) ? project_id[0] : project_id) as string
   const { getToken } = useAuth()
+  const { user } = useUser()
   const toast = useToast()
 
   const [project, setProject] = useState<ProjectDetail | null>(null)
@@ -89,6 +93,23 @@ const ProjectPage = () => {
   const [activeResponseId, setActiveResponseId] = useState<string | null>(null)
   const [conditions, setConditions] = useState<Condition[]>([])
   const [upgradeError, setUpgradeError] = useState<PlanLimitError | null>(null)
+
+  // Auto-save logic
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+
+  // Track initial or last-saved state to avoid saving on first load
+  const [lastSavedEndpoints, setLastSavedEndpoints] = useState<any>(null)
+  const [lastSavedResponses, setLastSavedResponses] = useState<any>(null)
+  const [lastSavedConditions, setLastSavedConditions] = useState<any>(null)
+
+  // Debounced states for endpoints, responses, and conditions
+  const debouncedEndpoints = useDebounce(endpoints, 1000)
+  const debouncedResponsesMap = useDebounce(responsesMap, 1000)
+  const debouncedConditions = useDebounce(conditions, 1000)
+
+  // Navigation intercept logic
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState<{ type: 'endpoint' | 'dashboard', endpointId?: string } | null>(null)
 
   // ── Load project + mocks ──────────────────────────────────────────────
   const loadProject = useCallback(async () => {
@@ -118,11 +139,19 @@ const ProjectPage = () => {
 
       setResponsesMap(newResponsesMap)
       setEndpoints(fullMocks)
+
+      // Setup initial snapshots for comparison
+      setLastSavedEndpoints(JSON.stringify(fullMocks))
+      setLastSavedResponses(JSON.stringify(newResponsesMap))
+
       if (fullMocks[0]) {
         setActiveId(fullMocks[0].id)
         const resps = newResponsesMap[fullMocks[0].id] ?? []
         const defaultResp = resps.find(r => r.is_default === 1) ?? resps[0]
         setActiveResponseId(defaultResp?.response_id ?? null)
+        const initialConditions = defaultResp ? parseConditions(defaultResp.conditions) : []
+        setConditions(initialConditions)
+        setLastSavedConditions(JSON.stringify(initialConditions))
       }
     } catch (err: any) {
       setError(friendlyApiError(err))
@@ -140,7 +169,10 @@ const ProjectPage = () => {
     const resps = responsesMap[activeId] ?? []
     const def = resps.find(r => r.is_default === 1) ?? resps[0]
     setActiveResponseId(def?.response_id ?? null)
-    setConditions(def ? parseConditions(def.conditions) : [])
+
+    const newConditions = def ? parseConditions(def.conditions) : []
+    setConditions(newConditions)
+    setLastSavedConditions(JSON.stringify(newConditions))
   }, [activeId])
 
   // ── Add new endpoint ──────────────────────────────────────────────────
@@ -220,7 +252,11 @@ const ProjectPage = () => {
   const handleResponseSelect = (r: MockResponse) => {
     if (!activeId) return
     setActiveResponseId(r.response_id)
-    setConditions(parseConditions(r.conditions))
+
+    const newConditions = parseConditions(r.conditions)
+    setConditions(newConditions)
+    setLastSavedConditions(JSON.stringify(newConditions))
+
     setEndpoints(prev => prev.map(ep =>
       ep.id === activeId ? {
         ...ep,
@@ -328,12 +364,33 @@ const ProjectPage = () => {
   const handleChange = (updated: MockEndpoint) => {
     setEndpoints(prev => prev.map(ep => ep.id === updated.id ? { ...ep, ...updated } : ep))
     setSaveError(null)
+    setHasUnsavedChanges(true)
   }
 
   // ── Save ──────────────────────────────────────────────────────────────
   const handleSave = async () => {
     const ep = endpoints.find(e => e.id === activeId)
     if (!ep) return
+
+    // Pre-flight JSON Validation
+    if (ep.contentType.includes('json') && ep.body.trim()) {
+      try {
+        JSON.parse(ep.body)
+      } catch (e: any) {
+        setSaveError('Invalid JSON in response body')
+        return
+      }
+    }
+
+    if (ep.requestBodyContentType?.includes('json') && ep.requestBody?.trim()) {
+      try {
+        JSON.parse(ep.requestBody)
+      } catch (e: any) {
+        setSaveError('Invalid JSON in expected request body')
+        return
+      }
+    }
+
     try {
       setSaving(true)
       setSaveError(null)
@@ -370,20 +427,39 @@ const ProjectPage = () => {
       if (ep._responseId) {
         await updateMockResponse(token, ep.id, ep._responseId, responsePayload)
         // Sync the responses map
-        setResponsesMap(prev => ({
-          ...prev,
-          [ep.id]: (prev[ep.id] ?? []).map(r =>
-            r.response_id === ep._responseId
-              ? { ...r, status_code: ep.statusCode, body: ep.body, headers: JSON.stringify(headersObj) }
-              : r
-          ),
-        }))
+        setResponsesMap(prev => {
+          const newMap = {
+            ...prev,
+            [ep.id]: (prev[ep.id] ?? []).map(r =>
+              r.response_id === ep._responseId
+                ? { ...r, status_code: ep.statusCode, body: ep.body, headers: JSON.stringify(headersObj), conditions: JSON.stringify(conditions) }
+                : r
+            ),
+          }
+          // Also update the snapshot!
+          setLastSavedResponses(JSON.stringify(newMap))
+          return newMap
+        })
       } else {
         const newResp = await createMockResponse(token, ep.id, responsePayload)
-        setEndpoints(prev => prev.map(e => e.id === ep.id ? { ...e, _responseId: newResp.response_id } : e))
-        setResponsesMap(prev => ({ ...prev, [ep.id]: [newResp] }))
+        setEndpoints(prev => {
+          const newEps = prev.map(e => e.id === ep.id ? { ...e, _responseId: newResp.response_id } : e)
+          setLastSavedEndpoints(JSON.stringify(newEps))
+          return newEps
+        })
+        setResponsesMap(prev => {
+          const newMap = { ...prev, [ep.id]: [newResp] }
+          setLastSavedResponses(JSON.stringify(newMap))
+          return newMap
+        })
         setActiveResponseId(newResp.response_id)
       }
+
+      // Update our saved snapshots
+      setLastSavedEndpoints(JSON.stringify(endpoints))
+      setLastSavedConditions(JSON.stringify(conditions))
+      setHasUnsavedChanges(false)
+
     } catch (err: any) {
       if (isPlanLimitError(err)) {
         setUpgradeError(err.details)
@@ -394,6 +470,80 @@ const ProjectPage = () => {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Effect to trigger auto-save when debounced data changes from our last saved snapshot
+  useEffect(() => {
+    // Don't auto-save if we never loaded
+    if (!lastSavedEndpoints) return
+
+    const endpointsChanged = JSON.stringify(debouncedEndpoints) !== lastSavedEndpoints
+    const responsesChanged = JSON.stringify(debouncedResponsesMap) !== lastSavedResponses
+    const conditionsChanged = JSON.stringify(debouncedConditions) !== lastSavedConditions
+
+    if (endpointsChanged || responsesChanged || conditionsChanged) {
+      handleSave()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedEndpoints, debouncedResponsesMap, debouncedConditions])
+
+  // Track immediate changes to show "Unsaved changes" badge if we are typing quickly
+  useEffect(() => {
+    if (!lastSavedEndpoints) return
+
+    const endpointsChanged = JSON.stringify(endpoints) !== lastSavedEndpoints
+    const responsesChanged = JSON.stringify(responsesMap) !== lastSavedResponses
+    const conditionsChanged = JSON.stringify(conditions) !== lastSavedConditions
+
+    if (endpointsChanged || responsesChanged || conditionsChanged) {
+      if (!hasUnsavedChanges) setHasUnsavedChanges(true)
+    } else {
+      if (hasUnsavedChanges) setHasUnsavedChanges(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpoints, responsesMap, conditions])
+
+  // ── Navigation Intercepts ─────────────────────────────────────────────
+  const handleSelectEndpoint = (id: string) => {
+    if (hasUnsavedChanges && activeId !== id) {
+      setPendingNavigation({ type: 'endpoint', endpointId: id })
+      setShowUnsavedModal(true)
+    } else {
+      setActiveId(id)
+    }
+  }
+
+  const handleBackNavigation = () => {
+    if (hasUnsavedChanges) {
+      setPendingNavigation({ type: 'dashboard' })
+      setShowUnsavedModal(true)
+    } else {
+      router.push('/dashboard')
+    }
+  }
+
+  const handleConfirmDiscard = () => {
+    // Revert state
+    if (lastSavedEndpoints) setEndpoints(JSON.parse(lastSavedEndpoints))
+    if (lastSavedResponses) setResponsesMap(JSON.parse(lastSavedResponses))
+    if (lastSavedConditions) setConditions(JSON.parse(lastSavedConditions))
+
+    setHasUnsavedChanges(false)
+    setSaveError(null)
+    setShowUnsavedModal(false)
+
+    // Execute pending navigation
+    if (pendingNavigation?.type === 'dashboard') {
+      router.push('/dashboard')
+    } else if (pendingNavigation?.type === 'endpoint' && pendingNavigation.endpointId) {
+      setActiveId(pendingNavigation.endpointId)
+    }
+    setPendingNavigation(null)
+  }
+
+  const handleCancelDiscard = () => {
+    setShowUnsavedModal(false)
+    setPendingNavigation(null)
   }
 
   const activeEndpoint = endpoints.find(ep => ep.id === activeId) ?? null
@@ -425,7 +575,9 @@ const ProjectPage = () => {
         projectSlug={project?.slug ?? projectId}
         saving={saving}
         saveError={saveError}
+        hasUnsavedChanges={hasUnsavedChanges}
         onSave={handleSave}
+        onBack={handleBackNavigation}
       />
       <StatsBar projectId={projectId} />
 
@@ -433,7 +585,7 @@ const ProjectPage = () => {
         <EndpointList
           endpoints={endpoints}
           activeId={activeId}
-          onSelect={setActiveId}
+          onSelect={handleSelectEndpoint}
           onAdd={handleAdd}
           onDelete={handleDelete}
           isAdding={isAdding}
@@ -487,6 +639,14 @@ const ProjectPage = () => {
         <UpgradeModal
           error={upgradeError}
           onClose={() => setUpgradeError(null)}
+        />
+      )}
+
+      {showUnsavedModal && (
+        <UnsavedChangesModal
+          isOpen={showUnsavedModal}
+          onClose={handleCancelDiscard}
+          onConfirm={handleConfirmDiscard}
         />
       )}
     </div>

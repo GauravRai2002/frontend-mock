@@ -191,6 +191,29 @@ export interface TemplateDetail extends Template {
     mocks: TemplateMock[]
 }
 
+// ─── AI Generation ────────────────────────────────────────────────────────
+
+export interface AiGeneratedScenario {
+    name: string
+    status: number
+    responseBody: any
+}
+
+export interface AiGeneratedEndpoint {
+    method: string
+    route: string
+    description: string
+    scenarios: AiGeneratedScenario[]
+}
+
+export interface AiGeneratedProjectResponse {
+    data: AiGeneratedEndpoint[]
+}
+
+export interface AiGeneratedMockDataResponse {
+    data: any[] | any
+}
+
 // ─── Billing ──────────────────────────────────────────────────────────────
 
 export interface UsageEntry {
@@ -456,6 +479,22 @@ export async function getProject(token: string, id: string): Promise<ProjectDeta
     return res.data
 }
 
+export async function batchCreateProject(
+    token: string,
+    payload: {
+        name: string
+        description?: string
+        isPublic?: boolean
+        endpoints: AiGeneratedEndpoint[]
+    }
+): Promise<Project> {
+    const res = await apiFetch<{ data: Project }>('/projects/batch-create', token, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+    })
+    return res.data
+}
+
 export async function updateProject(
     token: string,
     id: string,
@@ -661,6 +700,28 @@ export async function applyTemplate(
     return apiFetch<{ projectId: string; appliedMocks: number }>(`/templates/${templateId}/apply`, token, {
         method: 'POST',
         body: JSON.stringify(payload),
+    })
+}
+
+// ─── AI Generation ────────────────────────────────────────────────────────
+
+export async function generateProjectStructure(
+    token: string,
+    prompt: string
+): Promise<AiGeneratedProjectResponse> {
+    return apiFetch<AiGeneratedProjectResponse>('/ai/generate/project', token, {
+        method: 'POST',
+        body: JSON.stringify({ prompt }),
+    })
+}
+
+export async function generateMockDataJson(
+    token: string,
+    prompt: string
+): Promise<AiGeneratedMockDataResponse> {
+    return apiFetch<AiGeneratedMockDataResponse>('/ai/generate/mock-data', token, {
+        method: 'POST',
+        body: JSON.stringify({ prompt }),
     })
 }
 
